@@ -439,6 +439,47 @@ export async function addEntry(data: {
       )
     }
 
+    // Send email notifications to organization members via Resend
+    try {
+      // 1. Get organization name
+      const { data: org } = await supabase
+        .from("organizations")
+        .select("name")
+        .eq("id", orgId)
+        .single()
+
+      // 2. Fetch member profiles (user_id, email, display_name)
+      const { data: profiles } = await supabase
+        .from("org_member_profiles")
+        .select("user_id, email, display_name")
+        .eq("org_id", orgId)
+
+      if (profiles && profiles.length > 0) {
+        // Find mapped names of tracked users
+        const trackerUsers = await getUsers()
+        const userMap = new Map(trackerUsers.map(u => [u.id, u.name]))
+
+        const presentNames = data.shares.map(s => userMap.get(s.userId)).filter(Boolean) as string[]
+        const payingNames = data.payments.map(p => userMap.get(p.userId)).filter(Boolean) as string[]
+
+        const toEmails = profiles.map(p => p.email).filter(Boolean)
+
+        if (toEmails.length > 0) {
+          const { sendLunchNotification } = await import("./email")
+          await sendLunchNotification({
+            to: toEmails,
+            date: data.date,
+            totalExpense: data.totalExpense,
+            presentNames,
+            payingNames,
+            orgName: org?.name || "Lunch Mate"
+          })
+        }
+      }
+    } catch (emailErr) {
+      console.error("Failed to dispatch lunch notification email:", emailErr)
+    }
+
     revalidatePath("/admin")
     revalidatePath("/user")
     return { success: true }
