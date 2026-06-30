@@ -680,6 +680,7 @@ export async function getWeeklySummary() {
         id: entry.id,
         date: entry.date,
         totalExpense: Number(entry.total_expense),
+        notes: entry.notes ?? null,
         userDetails: calculateSettlementAwareBalances(Number(entry.total_expense), userDetails),
       }
     })
@@ -798,6 +799,7 @@ export async function getMonthlySummary() {
         id: entry.id,
         date: entry.date,
         totalExpense: Number(entry.total_expense),
+        notes: entry.notes ?? null,
         userDetails: calculateSettlementAwareBalances(Number(entry.total_expense), userDetails),
       }
     })

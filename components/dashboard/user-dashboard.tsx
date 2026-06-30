@@ -71,6 +71,7 @@ export function UserDashboard({
         totalExpense: entry.total_expense,
         share: share?.share_amount || 0,
         paid: payment?.paid_amount || 0,
+        notes: entry.notes,
       }
     })
 
@@ -211,6 +212,7 @@ export function UserDashboard({
                     <TableHeader>
                       <TableRow className="bg-primary/5 hover:bg-primary/5 border-none h-14">
                         <TableHead className="py-4 px-6 font-bold text-primary text-[10px] uppercase tracking-widest">Date</TableHead>
+                        <TableHead className="py-4 px-6 text-left font-bold text-primary text-[10px] uppercase tracking-widest">What We Ate</TableHead>
                         <TableHead className="py-4 px-6 text-right font-bold text-primary text-[10px] uppercase tracking-widest">Total Expense</TableHead>
                         <TableHead className="py-4 px-6 text-right font-bold text-primary text-[10px] uppercase tracking-widest">Your Share</TableHead>
                         <TableHead className="py-4 px-6 text-right font-bold text-primary text-[10px] uppercase tracking-widest">You Paid</TableHead>
@@ -221,6 +223,15 @@ export function UserDashboard({
                         <TableRow key={index} className="hover:bg-muted/40 transition-colors border-b border-border/30 last:border-none group">
                           <TableCell className="py-5 px-6 font-black text-xs md:text-sm">
                             {formatDate(activity.date)}
+                          </TableCell>
+                          <TableCell className="py-5 px-6 text-left text-xs md:text-sm font-medium text-muted-foreground max-w-[200px]">
+                            {activity.notes ? (
+                              <span className="block truncate" title={activity.notes}>
+                                {activity.notes}
+                              </span>
+                            ) : (
+                              <span className="italic opacity-40">—</span>
+                            )}
                           </TableCell>
                           <TableCell className="py-5 px-6 text-right tabular-nums text-xs md:text-sm font-medium">
                             {currency} {activity.totalExpense.toLocaleString()}
@@ -241,7 +252,7 @@ export function UserDashboard({
                       {recentActivity.length === 0 && (
                         <TableRow>
                           <TableCell
-                            colSpan={4}
+                            colSpan={5}
                             className="text-center text-muted-foreground py-16"
                           >
                             <div className="flex flex-col items-center gap-2 opacity-40">
