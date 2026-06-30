@@ -22,7 +22,7 @@ import type { LunchUser, UserBalance, EntryWithDetails } from "@/lib/actions"
 import { formatDate } from "@/lib/date-utils"
 import { WeeklySummary } from "./weekly-summary"
 import { MonthlySummary } from "./monthly-summary"
-import { LayoutDashboard, CalendarDays, CalendarRange } from "lucide-react"
+import { LayoutDashboard, CalendarDays, CalendarRange, Lock } from "lucide-react"
 import { UserLabel } from "./user-label"
 
 interface UserDashboardProps {
@@ -35,6 +35,15 @@ interface UserDashboardProps {
   onUserChange: (userId: string) => void
   currency?: string
   currentUserId?: string
+  isAdmin?: boolean
+}
+
+function PrivateAmount() {
+  return (
+    <div className="text-2xl md:text-3xl font-black tabular-nums text-muted-foreground/30 flex items-center gap-2">
+      <Lock className="h-5 w-5" />
+    </div>
+  )
 }
 
 export function UserDashboard({
@@ -47,6 +56,7 @@ export function UserDashboard({
   onUserChange,
   currency,
   currentUserId,
+  isAdmin = false,
 }: UserDashboardProps) {
   const selectedBalance = balances.find((b) => b.id === selectedUserId)
   
@@ -90,20 +100,20 @@ export function UserDashboard({
             <CardHeader className="py-4 md:py-6">
               <CardTitle className="text-[10px] md:text-sm font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
                 <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                Select User Profile
+                {isAdmin ? "Select User Profile" : "Your Profile"}
               </CardTitle>
             </CardHeader>
             <CardContent className="pb-6 md:pb-8">
-              <Select value={selectedUserId} onValueChange={onUserChange}>
+              <Select value={selectedUserId} onValueChange={onUserChange} disabled={!isAdmin}>
                 <SelectTrigger className="w-full md:max-w-xs bg-background/50 border-border/40 rounded-xl h-12 md:h-10">
                   <SelectValue placeholder="Select a user" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl border-border/50 backdrop-blur-xl">
                   {users.map((user) => (
                     <SelectItem key={user.id} value={user.id} className="rounded-lg">
-                      <UserLabel 
-                        name={user.name} 
-                        isMe={user.linked_user_id === currentUserId} 
+                      <UserLabel
+                        name={user.name}
+                        isMe={user.linked_user_id === currentUserId}
                         className="text-xs md:text-sm"
                       />
                     </SelectItem>
@@ -123,18 +133,22 @@ export function UserDashboard({
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-4 md:px-6 pb-6 md:pb-8">
-                <div
-                  className={cn(
-                    "text-2xl md:text-3xl font-black tabular-nums",
-                    (selectedBalance?.balance || 0) > 0
-                      ? "text-emerald-500"
-                      : (selectedBalance?.balance || 0) < 0
-                      ? "text-red-500"
-                      : "text-card-foreground"
-                  )}
-                >
-                  {(selectedBalance?.balance || 0) >= 0 ? "+" : ""}{currency} {(selectedBalance?.balance || 0).toLocaleString()}
-                </div>
+                {selectedBalance && selectedBalance.balance === null ? (
+                  <PrivateAmount />
+                ) : (
+                  <div
+                    className={cn(
+                      "text-2xl md:text-3xl font-black tabular-nums",
+                      (selectedBalance?.balance || 0) > 0
+                        ? "text-emerald-500"
+                        : (selectedBalance?.balance || 0) < 0
+                        ? "text-red-500"
+                        : "text-card-foreground"
+                    )}
+                  >
+                    {(selectedBalance?.balance || 0) >= 0 ? "+" : ""}{currency} {(selectedBalance?.balance || 0).toLocaleString()}
+                  </div>
+                )}
               </CardContent>
             </Card>
             <Card className="bg-card/50 backdrop-blur-sm border-border/50">
@@ -144,9 +158,13 @@ export function UserDashboard({
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-4 md:px-6 pb-6 md:pb-8">
-                <div className="text-2xl md:text-3xl font-black tabular-nums text-card-foreground">
-                  {currency} {(selectedBalance?.totalPaid || 0).toLocaleString()}
-                </div>
+                {selectedBalance && selectedBalance.totalPaid === null ? (
+                  <PrivateAmount />
+                ) : (
+                  <div className="text-2xl md:text-3xl font-black tabular-nums text-card-foreground">
+                    {currency} {(selectedBalance?.totalPaid || 0).toLocaleString()}
+                  </div>
+                )}
               </CardContent>
             </Card>
             <Card className="bg-card/50 backdrop-blur-sm border-border/50">
@@ -156,9 +174,13 @@ export function UserDashboard({
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-4 md:px-6 pb-6 md:pb-8">
-                <div className="text-2xl md:text-3xl font-black tabular-nums text-card-foreground">
-                  {currency} {(selectedBalance?.totalShares || 0).toLocaleString()}
-                </div>
+                {selectedBalance && selectedBalance.totalShares === null ? (
+                  <PrivateAmount />
+                ) : (
+                  <div className="text-2xl md:text-3xl font-black tabular-nums text-card-foreground">
+                    {currency} {(selectedBalance?.totalShares || 0).toLocaleString()}
+                  </div>
+                )}
               </CardContent>
             </Card>
             <Card className="bg-card/50 backdrop-blur-sm border-border/50">

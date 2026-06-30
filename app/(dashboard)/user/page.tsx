@@ -36,12 +36,14 @@ export default function UserPage() {
   })
 
   const [selectedUserId, setSelectedUserId] = useState<string>("")
+  const isAdmin = data?.org?.role === "admin"
 
   useEffect(() => {
     if (data?.users && data.users.length > 0 && !selectedUserId) {
-      setSelectedUserId(data.users[0].id)
+      const ownProfile = data.users.find((u) => u.linked_user_id === data.user?.id)
+      setSelectedUserId(ownProfile?.id || data.users[0].id)
     }
-  }, [data?.users, selectedUserId])
+  }, [data?.users, data?.user, selectedUserId])
 
   if (error) {
     return (
@@ -94,6 +96,7 @@ export default function UserPage() {
           onUserChange={setSelectedUserId}
           currency={data.org?.currency || ""}
           currentUserId={data.user?.id}
+          isAdmin={isAdmin}
         />
       </div>
     </div>
