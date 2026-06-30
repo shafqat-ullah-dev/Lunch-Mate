@@ -19,6 +19,7 @@ type EntryDetail = {
   id: string
   date: string
   totalExpense: number
+  notes: string | null
   userDetails: {
     userId: string
     userName: string
@@ -277,6 +278,7 @@ export function WeeklySummary({
                                     <TableHeader>
                                       <TableRow className="bg-background/50 hover:bg-background/50 border-none">
                                         <TableHead className="py-3 px-4 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground">Date</TableHead>
+                                        <TableHead className="py-3 px-4 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">What We Ate</TableHead>
                                         <TableHead className="py-3 px-4 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground">Amount</TableHead>
                                         {users.map(u => (
                                           <TableHead key={u.id} className="py-3 px-4 text-center text-xs font-bold uppercase tracking-wider text-muted-foreground min-w-[100px] max-w-[120px]">
@@ -293,6 +295,15 @@ export function WeeklySummary({
                                       {week.entries.map(entry => (
                                         <TableRow key={entry.id} className="hover:bg-primary/5 border-b border-border/20 last:border-none">
                                           <TableCell className="py-3 px-4 text-center text-sm font-medium">{formatDate(entry.date)}</TableCell>
+                                          <TableCell className="py-3 px-4 text-left text-sm font-medium text-muted-foreground max-w-[160px]">
+                                            {entry.notes ? (
+                                              <span className="block truncate" title={entry.notes}>
+                                                {entry.notes}
+                                              </span>
+                                            ) : (
+                                              <span className="italic opacity-40">—</span>
+                                            )}
+                                          </TableCell>
                                           <TableCell className="py-3 px-4 text-center tabular-nums text-sm font-bold">{currency}{entry.totalExpense.toLocaleString()}</TableCell>
                                           {users.map(user => {
                                             const detail = entry.userDetails.find(d => d.userId === user.id)
