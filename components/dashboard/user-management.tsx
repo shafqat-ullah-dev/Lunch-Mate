@@ -347,7 +347,7 @@ export function UserManagement({ users, balances, currentUserId, currency = "PKR
                                 <AlertDialogTitle className="text-2xl font-black uppercase tracking-tight text-center">Remove Tracker?</AlertDialogTitle>
                                 <AlertDialogDescription className="text-center text-sm font-medium leading-relaxed">
                                   Are you certain you want to stop tracking <span className="font-black text-foreground">{user.name}</span>? This will wipe their history but keep their team membership intact.
-                                  {balance && balance.balance !== 0 && (
+                                  {balance && balance.balance != null && balance.balance !== 0 && (
                                     <div className="mt-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 font-bold text-xs uppercase tracking-tight">
                                       Critical: They have a balance of {currency} {balance.balance.toLocaleString()}
                                     </div>

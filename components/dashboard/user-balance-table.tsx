@@ -64,23 +64,23 @@ export function UserBalanceTable({ balances, currency, currentUserId }: UserBala
                       </div>
                     </TableCell>
                     <TableCell className="py-6 px-6 text-center tabular-nums text-xs md:text-sm font-medium">
-                      {currency} {balance.totalPaid.toLocaleString()}
+                      {currency} {(balance.totalPaid ?? 0).toLocaleString()}
                     </TableCell>
                     <TableCell className="py-6 px-6 text-center tabular-nums text-xs md:text-sm font-medium">
-                      {currency} {balance.totalShares.toLocaleString()}
+                      {currency} {(balance.totalShares ?? 0).toLocaleString()}
                     </TableCell>
                     <TableCell
                       className={cn(
                         "py-6 px-6 text-center tabular-nums text-xs md:text-sm font-black transition-all",
-                        balance.balance > 0
+                        (balance.balance ?? 0) > 0
                           ? "text-emerald-500 bg-emerald-500/5 group-hover:bg-emerald-500/10"
-                          : balance.balance < 0
+                          : (balance.balance ?? 0) < 0
                           ? "text-red-500 bg-red-500/5 group-hover:bg-red-500/10"
                           : "text-muted-foreground"
                       )}
                     >
                       <div className="inline-flex items-center gap-1">
-                        {balance.balance >= 0 ? "+" : "-"}{currency} {Math.abs(balance.balance).toLocaleString()}
+                        {(balance.balance ?? 0) >= 0 ? "+" : "-"}{currency} {Math.abs(balance.balance ?? 0).toLocaleString()}
                       </div>
                     </TableCell>
                   </TableRow>

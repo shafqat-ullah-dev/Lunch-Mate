@@ -11,6 +11,7 @@ import {
 import { Download, Menu, PanelLeftOpen } from "lucide-react"
 import { useSidebar } from "@/hooks/use-sidebar"
 import { cn } from "@/lib/utils"
+import { PushNotificationToggle } from "@/components/dashboard/push-notification-toggle"
 
 interface TopNavbarProps {
   title: string
@@ -51,6 +52,7 @@ export function TopNavbar({
       </div>
       
       <div className="flex items-center gap-2 md:gap-3 shrink-0">
+        <PushNotificationToggle />
         {onMonthChange && (
           <Select defaultValue={currentMonth} onValueChange={onMonthChange}>
             <SelectTrigger className="w-24 md:w-36 h-9 md:h-10 text-[10px] md:text-sm font-bold bg-background/50 border-border/50 backdrop-blur-sm shadow-sm hover:border-primary/50 transition-colors rounded-xl">
