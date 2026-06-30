@@ -82,7 +82,7 @@ export function PushNotificationToggle() {
       onClick={handleToggle}
       disabled={loading}
       aria-label={subscribed ? "Disable notifications" : "Enable notifications"}
-      className="h-9 w-9 md:h-10 md:w-10 border-border/50 hover:bg-primary hover:text-primary-foreground bg-background/50 shadow-sm transition-all rounded-xl shrink-0"
+      className="h-9 w-9 md:h-10 md:w-10 border-border/50 hover:bg-primary hover:text-primary-foreground dark:hover:bg-primary dark:hover:text-primary-foreground bg-background/50 shadow-sm transition-all rounded-xl shrink-0"
     >
       {subscribed ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
     </Button>
