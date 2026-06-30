@@ -77,7 +77,11 @@ export function UserManagement({ users, balances, currentUserId, currency = "PKR
       .select("user_id, email, display_name, role")
       .eq("org_id", org.id)
 
-    if (error || !data) { setLoadingMembers(false); return }
+    if (error || !data) {
+      toast.error("Failed to load available members")
+      setLoadingMembers(false)
+      return
+    }
 
     // Filter out those already in lunch tracking
     const trackedUserIds = new Set(users.map((u: any) => u.linked_user_id).filter(Boolean))
@@ -119,8 +123,11 @@ export function UserManagement({ users, balances, currentUserId, currency = "PKR
     startTransition(async () => {
       const result = await updateUser(editingUser.id, editName)
       if (result.success) {
+        toast.success("Member name updated")
         setIsEditDialogOpen(false)
         setEditingUser(null)
+      } else {
+        toast.error(result.error || "Failed to update member name")
       }
     })
   }
@@ -382,31 +389,33 @@ export function UserManagement({ users, balances, currentUserId, currency = "PKR
         </div>
       </CardContent>
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-md rounded-[2rem] border-2 border-border/50 shadow-none backdrop-blur-3xl">
           <DialogHeader>
-            <DialogTitle>Edit Member Name</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-2xl font-black uppercase tracking-tight">Edit Member Name</DialogTitle>
+            <DialogDescription className="text-sm font-medium">
               Change how this member appears across the dashboard.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4 space-y-4">
-            <div className="space-y-2">
-              <label className="text-xs font-black uppercase tracking-widest opacity-60">Display Name</label>
-              <input 
-                autoFocus
-                className="w-full h-12 bg-background border border-border rounded-xl px-4 font-bold text-sm focus:border-primary outline-none transition-all"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                placeholder="Enter name"
-                onKeyDown={(e) => e.key === 'Enter' && handleUpdateUser()}
-              />
-            </div>
+          <div className="py-6 space-y-2">
+            <label className="text-xs font-black uppercase tracking-widest opacity-60">Display Name</label>
+            <input
+              autoFocus
+              className="w-full h-12 bg-background border-2 border-border/50 rounded-xl px-4 font-bold text-sm focus:border-primary outline-none transition-all"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              placeholder="Enter name"
+              onKeyDown={(e) => e.key === 'Enter' && handleUpdateUser()}
+            />
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isPending}>
+          <DialogFooter className="gap-3 sm:gap-0">
+            <Button variant="ghost" className="rounded-xl font-black uppercase tracking-widest text-xs h-12" onClick={() => setIsEditDialogOpen(false)} disabled={isPending}>
               Cancel
             </Button>
-            <Button onClick={handleUpdateUser} disabled={isPending || !editName.trim()}>
+            <Button
+              className="flex-1 sm:flex-none rounded-xl font-black uppercase tracking-widest text-xs h-12 border-2 border-primary/20 hover:border-primary/50 shadow-none"
+              onClick={handleUpdateUser}
+              disabled={isPending || !editName.trim()}
+            >
               {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
               Save Changes
             </Button>

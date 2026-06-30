@@ -9,6 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Users } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { UserBalance } from "@/lib/actions"
 
@@ -28,6 +29,15 @@ export function UserBalanceTable({ balances, currency, currentUserId }: UserBala
         <p className="text-[10px] md:text-xs font-bold text-muted-foreground uppercase tracking-widest">Real-time team debt and credit tracking</p>
       </CardHeader>
       <CardContent className="px-0 pb-10">
+        {balances.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-3 text-center py-16 px-6">
+            <div className="p-3 rounded-full bg-primary/5">
+              <Users className="h-8 w-8 text-muted-foreground/40" />
+            </div>
+            <p className="text-sm font-bold text-muted-foreground">No members yet</p>
+            <p className="text-xs text-muted-foreground/60">Balances will show up here once entries are added.</p>
+          </div>
+        ) : (
         <div className="relative group/scroll">
           <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-background/20 to-transparent pointer-events-none z-10 lg:hidden group-hover/scroll:opacity-0 transition-opacity" />
           <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-primary/10 scrollbar-track-transparent">
@@ -79,6 +89,7 @@ export function UserBalanceTable({ balances, currency, currentUserId }: UserBala
             </Table>
           </div>
         </div>
+        )}
       </CardContent>
     </Card>
 

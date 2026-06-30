@@ -33,8 +33,9 @@ export function InviteRecovery() {
     <Card className="max-w-md w-full bg-primary/5 border-2 border-primary/30 backdrop-blur-2xl shadow-none rounded-[2rem] overflow-hidden relative animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-primary/30 via-primary to-primary/30" />
       
-      <button 
+      <button
         onClick={() => setDismissed(true)}
+        aria-label="Dismiss pending invitation"
         className="absolute top-4 right-4 p-1 rounded-full hover:bg-primary/10 transition-colors text-primary/60 hover:text-primary cursor-pointer"
       >
         <X className="h-4 w-4" />

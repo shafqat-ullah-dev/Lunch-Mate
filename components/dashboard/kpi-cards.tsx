@@ -46,6 +46,34 @@ export function KPICards({
     },
   ]
 
+  if (totalEntries === 0) {
+    return (
+      <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+        {cards.map((card) => {
+          const Icon = card.icon
+          return (
+            <Card key={card.title} className="relative overflow-hidden border-border/40 border-dashed shadow-none">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-[10px] font-black text-foreground/90 uppercase tracking-[0.2em]">
+                  {card.title}
+                </CardTitle>
+                <div className="p-2 rounded-xl bg-white/[0.03] border-2 border-border/40 text-muted-foreground/50">
+                  <Icon className="h-4 w-4" />
+                </div>
+              </CardHeader>
+              <CardContent className="pb-8">
+                <div className="text-3xl font-bold tracking-tight text-muted-foreground/30">—</div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 mt-2">
+                  No Entries Yet
+                </p>
+              </CardContent>
+            </Card>
+          )
+        })}
+      </div>
+    )
+  }
+
   return (
     <div suppressHydrationWarning className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((card) => {
