@@ -879,8 +879,9 @@ function calculateSettlementAwareBalances(
   })
 }
 
-// Settle all historical debt for a user by applying payments to past entries where they owe money
-export async function settleUserDebt(userId: string): Promise<{ success: boolean; error?: string }> {
+// Settle historical debt for a user by applying payments to past entries where they owe money.
+// If `amount` is provided, only that much is applied (oldest debts first); otherwise all debt is settled.
+export async function settleUserDebt(userId: string, amount?: number): Promise<{ success: boolean; error?: string }> {
   try {
     const auth = await getAuthorizedOrgId()
     if (!auth) return { success: false, error: "No organization found" }
@@ -889,40 +890,41 @@ export async function settleUserDebt(userId: string): Promise<{ success: boolean
 
     // Use getDailyLunchData to find all entries where user has a negative balance
     const { entries } = await getDailyLunchData()
-    
-    // Filter for entries where this user has debt (balance < 0)
-    const debtEntries = entries.filter(e => {
-      const detail = e.userDetails.find(ud => ud.userId === userId)
-      return detail && detail.balance < 0
-    })
+
+    // Filter for entries where this user has debt (balance < 0), oldest first
+    const debtEntries = entries
+      .filter(e => {
+        const detail = e.userDetails.find(ud => ud.userId === userId)
+        return detail && detail.balance < 0
+      })
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
     if (debtEntries.length === 0) return { success: true }
 
     const supabase = await createClient()
-    
+
     // Process each debt entry - adding a payment record for the debtor
-    // to cover their specific share deficit on that day.
-    const results = await Promise.all(debtEntries.map(async (entry) => {
+    // to cover their specific share deficit on that day, capped by `amount` if given.
+    let remaining = amount
+    const inserts: { entry_id: string; user_id: string; paid_amount: number; org_id: string }[] = []
+    for (const entry of debtEntries) {
+      if (remaining !== undefined && remaining <= 0) break
+
       const detail = entry.userDetails.find(ud => ud.userId === userId)
-      if (!detail) return { success: true }
+      if (!detail) continue
 
       const debtAmount = Math.abs(detail.balance)
+      const payAmount = remaining !== undefined ? Math.min(debtAmount, remaining) : debtAmount
+      if (payAmount <= 0) continue
 
-      // Insert a payment record for this user to settle their debt for this specific entry
-      const { error } = await supabase
-        .from("lunch_payments")
-        .insert({
-          entry_id: entry.id,
-          user_id: userId,
-          paid_amount: debtAmount,
-          org_id: orgId
-        })
-      
-      return { success: !error, error: error?.message }
-    }))
+      inserts.push({ entry_id: entry.id, user_id: userId, paid_amount: payAmount, org_id: orgId })
+      if (remaining !== undefined) remaining -= payAmount
+    }
 
-    const firstError = results.find(r => !r.success)?.error
-    if (firstError) return { success: false, error: firstError }
+    if (inserts.length === 0) return { success: true }
+
+    const { error } = await supabase.from("lunch_payments").insert(inserts)
+    if (error) return { success: false, error: error.message }
 
     revalidatePath("/admin")
     revalidatePath("/admin/lunch")

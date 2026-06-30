@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { addEntry } from "@/lib/actions"
+import { addEntry, settleUserDebt } from "@/lib/actions"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 
@@ -82,13 +82,20 @@ export function AddEntryDialog({ users, currency, currentUserId }: AddEntryDialo
         date,
         totalExpense: total,
         shares,
-        payments: [{ userId: paidBy, amount: total + extraPayment }],
+        payments: [{ userId: paidBy, amount: total }],
       })
 
       if (result.success) {
+        if (extraPayment > 0) {
+          const settleResult = await settleUserDebt(paidBy, extraPayment)
+          if (!settleResult.success) {
+            toast.error(settleResult.error || "Entry added, but extra payment toward debt failed")
+          }
+        }
         toast.success("Entry added successfully")
         setOpen(false)
         setTotalExpense("")
+        setExtraPayment(0)
       } else {
         toast.error(result.error || "Failed to add entry")
       }
@@ -255,19 +262,22 @@ export function AddEntryDialog({ users, currency, currentUserId }: AddEntryDialo
             </div>
             <div className="flex justify-between items-end pt-1">
               <span className="text-xs font-black uppercase tracking-widest opacity-80">
-                {extraPayment > 0 ? "Total to Record" : "Share / Person"}
+                Share / Person
               </span>
-              <div className="flex flex-col items-end">
-                {extraPayment > 0 && (
-                  <span className="text-[10px] font-bold text-muted-foreground line-through opacity-50">
-                    {currency}{sharePerPerson.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                )}
-                <span className="text-3xl font-black text-primary tracking-tighter">
-                  {currency}{(extraPayment > 0 ? total + extraPayment : sharePerPerson).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <span className="text-3xl font-black text-primary tracking-tighter">
+                {currency}{sharePerPerson.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+            {extraPayment > 0 && (
+              <div className="flex justify-between items-end pt-1 border-t border-primary/10">
+                <span className="text-xs font-black uppercase tracking-widest opacity-80">
+                  + Old Debt Payoff
+                </span>
+                <span className="text-lg font-black text-primary tracking-tighter">
+                  {currency}{extraPayment.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
-            </div>
+            )}
           </div>
 
           <DialogFooter className="pt-2">
