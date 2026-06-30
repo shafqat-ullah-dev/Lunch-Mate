@@ -76,13 +76,16 @@ export function EditEntryDialog({ entry, users, currency, currentUserId, trigger
   const [notes, setNotes] = useState(entry.notes || "")
   const [customSplit, setCustomSplit] = useState(false)
   const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({})
+  const [splitPayment, setSplitPayment] = useState(false)
+  const [paymentAmounts, setPaymentAmounts] = useState<Record<string, string>>({})
 
   // Sync state when entry changes (if needed)
   useEffect(() => {
     if (open) {
       setDate(entry.date)
       setTotalExpense(entry.totalExpense.toString())
-      const currentPaidBy = entry.userDetails.find(d => d.paid > 0)?.userId || users[0]?.id || ""
+      const payers = entry.userDetails.filter(d => d.paid > 0)
+      const currentPaidBy = payers[0]?.userId || users[0]?.id || ""
       setPaidBy(currentPaidBy)
       setPresentUserIds(new Set(entry.userDetails.filter(d => d.isPresent).map(d => d.userId)))
       setNotes(entry.notes || "")
@@ -90,6 +93,15 @@ export function EditEntryDialog({ entry, users, currency, currentUserId, trigger
       setCustomAmounts(
         Object.fromEntries(entry.userDetails.filter(d => d.isPresent).map(d => [d.userId, d.share.toString()]))
       )
+      // Existing entries with more than one payer are already a split payment;
+      // auto-enable the toggle and prefill so saving doesn't collapse them to one payer.
+      if (payers.length > 1) {
+        setSplitPayment(true)
+        setPaymentAmounts(Object.fromEntries(payers.map(p => [p.userId, p.paid.toString()])))
+      } else {
+        setSplitPayment(false)
+        setPaymentAmounts({})
+      }
     }
   }, [open, entry, users])
 
@@ -98,6 +110,10 @@ export function EditEntryDialog({ entry, users, currency, currentUserId, trigger
   const sharePerPerson = presentCount > 0 ? total / presentCount : 0
   const customTotal = Array.from(presentUserIds).reduce(
     (sum, userId) => sum + (parseFloat(customAmounts[userId]) || 0),
+    0
+  )
+  const paymentsTotal = users.reduce(
+    (sum, user) => sum + (parseFloat(paymentAmounts[user.id]) || 0),
     0
   )
 
@@ -125,6 +141,10 @@ export function EditEntryDialog({ entry, users, currency, currentUserId, trigger
       toast.error(`Custom split must add up to the total expense (currently ${customTotal.toFixed(2)})`)
       return
     }
+    if (splitPayment && Math.abs(paymentsTotal - total) > 0.01) {
+      toast.error(`Split payment must add up to the total expense (currently ${paymentsTotal.toFixed(2)})`)
+      return
+    }
 
     setIsSubmitting(true)
     try {
@@ -133,12 +153,18 @@ export function EditEntryDialog({ entry, users, currency, currentUserId, trigger
         amount: customSplit ? parseFloat(customAmounts[userId]) || 0 : sharePerPerson,
       }))
 
+      const payments = splitPayment
+        ? users
+            .map((user) => ({ userId: user.id, amount: parseFloat(paymentAmounts[user.id]) || 0 }))
+            .filter((p) => p.amount > 0)
+        : [{ userId: paidBy, amount: total }]
+
       const result = await updateEntry(entry.id, {
         date,
         totalExpense: total,
         notes,
         shares,
-        payments: [{ userId: paidBy, amount: total }],
+        payments,
       })
 
       if (result.success) {
@@ -189,7 +215,7 @@ export function EditEntryDialog({ entry, users, currency, currentUserId, trigger
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[480px] bg-card/95 backdrop-blur-xl border-border/50">
+      <DialogContent className="sm:max-w-[480px] bg-card/95 backdrop-blur-xl border-border/50 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl font-bold">
             <Receipt className="h-5 w-5 text-primary" />
@@ -228,62 +254,111 @@ export function EditEntryDialog({ entry, users, currency, currentUserId, trigger
             <div className="grid gap-2.5">
               <div className="flex justify-between items-end">
                 <Label htmlFor="edit-paidBy" className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">Who Paid?</Label>
-                {(() => {
-                  const selectedUser = users.find(u => u.id === paidBy);
-                  const detail = entry.userDetails.find(d => d.userId === paidBy);
-                  const balance = selectedUser?.totalBalance ?? detail?.totalBalance ?? 0;
-                  
-                  if (balance < 0) {
-                    return (
-                      <Button 
-                        type="button" 
-                        variant="link" 
-                        className="h-auto p-0 text-[10px] font-black uppercase text-primary animate-pulse"
-                        onClick={() => setExtraPayment(Math.abs(balance))}
-                      >
-                        Paid All (Add {currency}{Math.abs(balance).toLocaleString()})
-                      </Button>
-                    );
-                  }
-                  return null;
-                })()}
-              </div>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Select value={paidBy} onValueChange={(val) => {
-                    setPaidBy(val);
-                    setExtraPayment(0);
-                  }}>
-                    <SelectTrigger className="h-12 bg-background/50 border-border/40 rounded-xl px-4">
-                      <SelectValue placeholder="Select a user" />
-                    </SelectTrigger>
-                    <SelectContent className="rounded-xl border-border/50 backdrop-blur-xl">
-                      {users.map((user) => (
-                        <SelectItem key={user.id} value={user.id} className="rounded-lg">
-                          <UserLabel 
-                            name={user.name} 
-                            isMe={user.linked_user_id === currentUserId} 
-                            marquee={false} 
-                            className="text-xs"
-                          />
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                {extraPayment > 0 && (
-                  <div className="w-32 relative">
-                    <Input
-                      type="number"
-                      value={extraPayment}
-                      onChange={(e) => setExtraPayment(parseFloat(e.target.value) || 0)}
-                      className="h-12 bg-primary/10 border-primary/30 rounded-xl px-3 font-black text-primary text-xs"
-                      placeholder="Extra"
+                <div className="flex items-center gap-3">
+                  {!splitPayment && (() => {
+                    const selectedUser = users.find(u => u.id === paidBy);
+                    const detail = entry.userDetails.find(d => d.userId === paidBy);
+                    const balance = selectedUser?.totalBalance ?? detail?.totalBalance ?? 0;
+
+                    if (balance < 0) {
+                      return (
+                        <Button
+                          type="button"
+                          variant="link"
+                          className="h-auto p-0 text-[10px] font-black uppercase text-primary animate-pulse"
+                          onClick={() => setExtraPayment(Math.abs(balance))}
+                        >
+                          Paid All (Add {currency}{Math.abs(balance).toLocaleString()})
+                        </Button>
+                      );
+                    }
+                    return null;
+                  })()}
+                  <div className="flex items-center gap-1.5">
+                    <Switch
+                      id="edit-split-payment"
+                      checked={splitPayment}
+                      onCheckedChange={(checked) => {
+                        setSplitPayment(checked)
+                        setExtraPayment(0)
+                      }}
                     />
-                    <span className="absolute -top-4 right-1 text-[8px] font-black text-primary uppercase">Extra Payment</span>
+                    <Label htmlFor="edit-split-payment" className="text-[10px] font-black uppercase tracking-tighter text-muted-foreground cursor-pointer">
+                      Split Payment
+                    </Label>
                   </div>
-                )}
+                </div>
               </div>
+              {splitPayment ? (
+                <div className="space-y-2">
+                  <div className="grid gap-2 p-4 rounded-2xl bg-background/20 border-2 border-border/30 max-h-[200px] overflow-y-auto shadow-none custom-scrollbar">
+                    {users.map((user) => (
+                      <div key={user.id} className="flex items-center justify-between gap-3">
+                        <UserLabel
+                          name={user.name}
+                          isMe={user.linked_user_id === currentUserId}
+                          className="text-xs flex-1 min-w-0"
+                        />
+                        <Input
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={paymentAmounts[user.id] ?? ""}
+                          onChange={(e) => setPaymentAmounts((prev) => ({ ...prev, [user.id]: e.target.value }))}
+                          className="h-9 w-28 text-right text-xs font-black bg-background/50 border-primary/20 rounded-lg px-2"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex justify-between items-center px-1">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Entered / Total</span>
+                    <span className={cn(
+                      "text-xs font-black",
+                      Math.abs(paymentsTotal - total) > 0.01 ? "text-red-500" : "text-emerald-500"
+                    )}>
+                      {currency}{paymentsTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <span className="text-muted-foreground"> / {currency}{total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <Select value={paidBy} onValueChange={(val) => {
+                      setPaidBy(val);
+                      setExtraPayment(0);
+                    }}>
+                      <SelectTrigger className="h-12 bg-background/50 border-border/40 rounded-xl px-4">
+                        <SelectValue placeholder="Select a user" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl border-border/50 backdrop-blur-xl">
+                        {users.map((user) => (
+                          <SelectItem key={user.id} value={user.id} className="rounded-lg">
+                            <UserLabel
+                              name={user.name}
+                              isMe={user.linked_user_id === currentUserId}
+                              marquee={false}
+                              className="text-xs"
+                            />
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  {extraPayment > 0 && (
+                    <div className="w-32 relative">
+                      <Input
+                        type="number"
+                        value={extraPayment}
+                        onChange={(e) => setExtraPayment(parseFloat(e.target.value) || 0)}
+                        className="h-12 bg-primary/10 border-primary/30 rounded-xl px-3 font-black text-primary text-xs"
+                        placeholder="Extra"
+                      />
+                      <span className="absolute -top-4 right-1 text-[8px] font-black text-primary uppercase">Extra Payment</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

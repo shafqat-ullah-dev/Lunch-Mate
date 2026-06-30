@@ -14,6 +14,11 @@ import {
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Check, Receipt, Loader2, Pencil, ChevronLeft, ChevronRight } from "lucide-react"
@@ -438,69 +443,97 @@ export function DailyLunchTracker({ entries, users, currency, currentUserId, isA
                       />
                     </TableCell>
                     <TableCell className="text-center px-4 h-full">
-                      <Select
-                        disabled={!isAdmin}
-                        defaultValue={entry.userDetails.find(d => d.paid > 0)?.userId || ""}
-                        onValueChange={async (newPayerId) => {
-                          const originalPayer = entry.userDetails.find(d => d.paid > 0);
-                          if (originalPayer?.userId === newPayerId) return;
+                      {(() => {
+                        const payers = entry.userDetails.filter(d => d.paid > 0);
+                        if (payers.length > 1) {
+                          return (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Badge
+                                  variant="secondary"
+                                  className="bg-primary/10 text-primary border-primary/20 text-[10px] font-black uppercase tracking-widest cursor-default"
+                                >
+                                  Split ({payers.length})
+                                </Badge>
+                              </TooltipTrigger>
+                              <TooltipContent className="text-xs">
+                                <div className="space-y-1">
+                                  {payers.map(p => (
+                                    <div key={p.userId}>
+                                      {p.userName}: {currency}{p.paid.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </div>
+                                  ))}
+                                  {isAdmin && (
+                                    <div className="pt-1 text-muted-foreground">Use edit to change payers</div>
+                                  )}
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          );
+                        }
+                        return (
+                          <Select
+                            disabled={!isAdmin}
+                            defaultValue={payers[0]?.userId || ""}
+                            onValueChange={async (newPayerId) => {
+                              const originalPayer = payers[0];
+                              if (originalPayer?.userId === newPayerId) return;
 
-                          const loader = toast.loading("Updating payer...");
-                          try {
-                            const result = await updateEntry(entry.id, {
-                              date: entry.date,
-                              totalExpense: entry.totalExpense,
-                              notes: entry.notes || undefined,
-                              shares: entry.userDetails.filter(d => d.isPresent).map(d => ({
-                                userId: d.userId,
-                                amount: d.share
-                              })),
-                              payments: [{ userId: newPayerId, amount: entry.totalExpense }]
-                            });
+                              const loader = toast.loading("Updating payer...");
+                              try {
+                                const result = await updateEntry(entry.id, {
+                                  date: entry.date,
+                                  totalExpense: entry.totalExpense,
+                                  notes: entry.notes || undefined,
+                                  shares: entry.userDetails.filter(d => d.isPresent).map(d => ({
+                                    userId: d.userId,
+                                    amount: d.share
+                                  })),
+                                  payments: [{ userId: newPayerId, amount: entry.totalExpense }]
+                                });
 
-                            if (result.success) {
-                              toast.success("Payer updated", { id: loader });
-                            } else {
-                              toast.error(result.error || "Update failed", { id: loader });
-                            }
-                          } catch (err) {
-                            toast.error("An error occurred", { id: loader });
-                          }
-                        }}
-                      >
-                        <SelectTrigger className={cn(
-                          "h-9 border-none rounded-lg px-2 focus:ring-0",
-                          !isAdmin ? "bg-transparent cursor-default px-0" : "bg-primary/5 hover:bg-primary/10 transition-colors cursor-pointer"
-                        )}>
-                          <SelectValue>
-                            {(() => {
-                              const originalPayer = entry.userDetails.find(d => d.paid > 0);
-                              return originalPayer ? (
-                                <UserLabel
-                                  name={originalPayer.userName}
-                                  isMe={originalPayer.userId === currentUserId}
-                                  className="text-xs font-black truncate max-w-[80px]"
-                                  marquee={false}
-                                />
-                              ) : (
-                                <span className="text-muted-foreground font-bold italic text-xs">Select Payer</span>
-                              );
-                            })()}
-                          </SelectValue>
-                        </SelectTrigger>
-                        <SelectContent className="rounded-xl border-border/50 backdrop-blur-xl">
-                          {users.map((user) => (
-                            <SelectItem key={user.id} value={user.id} className="rounded-lg">
-                              <UserLabel
-                                name={user.name}
-                                isMe={user.linked_user_id === currentUserId}
-                                marquee={false}
-                                className="text-xs"
-                              />
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                                if (result.success) {
+                                  toast.success("Payer updated", { id: loader });
+                                } else {
+                                  toast.error(result.error || "Update failed", { id: loader });
+                                }
+                              } catch (err) {
+                                toast.error("An error occurred", { id: loader });
+                              }
+                            }}
+                          >
+                            <SelectTrigger className={cn(
+                              "h-9 border-none rounded-lg px-2 focus:ring-0",
+                              !isAdmin ? "bg-transparent cursor-default px-0" : "bg-primary/5 hover:bg-primary/10 transition-colors cursor-pointer"
+                            )}>
+                              <SelectValue>
+                                {payers[0] ? (
+                                  <UserLabel
+                                    name={payers[0].userName}
+                                    isMe={payers[0].userId === currentUserId}
+                                    className="text-xs font-black truncate max-w-[80px]"
+                                    marquee={false}
+                                  />
+                                ) : (
+                                  <span className="text-muted-foreground font-bold italic text-xs">Select Payer</span>
+                                )}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent className="rounded-xl border-border/50 backdrop-blur-xl">
+                              {users.map((user) => (
+                                <SelectItem key={user.id} value={user.id} className="rounded-lg">
+                                  <UserLabel
+                                    name={user.name}
+                                    isMe={user.linked_user_id === currentUserId}
+                                    marquee={false}
+                                    className="text-xs"
+                                  />
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="text-muted-foreground text-xs border-r border-primary/5 px-4 max-w-[160px]">
                       {entry.notes ? (
