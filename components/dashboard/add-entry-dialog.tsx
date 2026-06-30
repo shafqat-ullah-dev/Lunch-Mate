@@ -131,7 +131,7 @@ export function AddEntryDialog({ users, currency, currentUserId }: AddEntryDialo
           Add Daily Entry
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[480px] bg-card/95 backdrop-blur-xl border-border/50">
+      <DialogContent className="sm:max-w-[480px] bg-card/95 backdrop-blur-xl border-border/50 max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl font-bold">
             <Receipt className="h-5 w-5 text-primary" />
