@@ -21,6 +21,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import { updateEntry, deleteEntry, settleUserDebt } from "@/lib/actions"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -41,6 +43,7 @@ type EntryData = {
   id: string
   date: string
   totalExpense: number
+  notes?: string | null
   userDetails: UserDetail[]
 }
 
@@ -70,6 +73,9 @@ export function EditEntryDialog({ entry, users, currency, currentUserId, trigger
     new Set(entry.userDetails.filter(d => d.isPresent).map(d => d.userId))
   )
   const [extraPayment, setExtraPayment] = useState(0)
+  const [notes, setNotes] = useState(entry.notes || "")
+  const [customSplit, setCustomSplit] = useState(false)
+  const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({})
 
   // Sync state when entry changes (if needed)
   useEffect(() => {
@@ -79,12 +85,21 @@ export function EditEntryDialog({ entry, users, currency, currentUserId, trigger
       const currentPaidBy = entry.userDetails.find(d => d.paid > 0)?.userId || users[0]?.id || ""
       setPaidBy(currentPaidBy)
       setPresentUserIds(new Set(entry.userDetails.filter(d => d.isPresent).map(d => d.userId)))
+      setNotes(entry.notes || "")
+      setCustomSplit(false)
+      setCustomAmounts(
+        Object.fromEntries(entry.userDetails.filter(d => d.isPresent).map(d => [d.userId, d.share.toString()]))
+      )
     }
   }, [open, entry, users])
 
   const total = parseFloat(totalExpense) || 0
   const presentCount = presentUserIds.size
   const sharePerPerson = presentCount > 0 ? total / presentCount : 0
+  const customTotal = Array.from(presentUserIds).reduce(
+    (sum, userId) => sum + (parseFloat(customAmounts[userId]) || 0),
+    0
+  )
 
   const toggleUser = (userId: string) => {
     const next = new Set(presentUserIds)
@@ -106,17 +121,22 @@ export function EditEntryDialog({ entry, users, currency, currentUserId, trigger
       toast.error("At least one person must be present")
       return
     }
+    if (customSplit && Math.abs(customTotal - total) > 0.01) {
+      toast.error(`Custom split must add up to the total expense (currently ${customTotal.toFixed(2)})`)
+      return
+    }
 
     setIsSubmitting(true)
     try {
       const shares = Array.from(presentUserIds).map((userId) => ({
         userId,
-        amount: sharePerPerson,
+        amount: customSplit ? parseFloat(customAmounts[userId]) || 0 : sharePerPerson,
       }))
 
       const result = await updateEntry(entry.id, {
         date,
         totalExpense: total,
+        notes,
         shares,
         payments: [{ userId: paidBy, amount: total }],
       })
@@ -272,18 +292,30 @@ export function EditEntryDialog({ entry, users, currency, currentUserId, trigger
               <Label className="text-xs font-black uppercase tracking-widest text-muted-foreground">
                 Attendance ({presentCount})
               </Label>
-              <Button 
-                type="button" 
-                variant="ghost" 
-                size="sm" 
-                className="h-6 text-[10px] font-black uppercase tracking-tighter px-2 hover:bg-primary/10 hover:text-primary transition-colors"
-                onClick={() => setPresentUserIds(new Set(users.map(u => u.id)))}
-              >
-                SELECT ALL
-              </Button>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <Switch
+                    id="edit-custom-split"
+                    checked={customSplit}
+                    onCheckedChange={setCustomSplit}
+                  />
+                  <Label htmlFor="edit-custom-split" className="text-[10px] font-black uppercase tracking-tighter text-muted-foreground cursor-pointer">
+                    Custom Split
+                  </Label>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-[10px] font-black uppercase tracking-tighter px-2 hover:bg-primary/10 hover:text-primary transition-colors"
+                  onClick={() => setPresentUserIds(new Set(users.map(u => u.id)))}
+                >
+                  SELECT ALL
+                </Button>
+              </div>
             </div>
-            
-            <div className="grid grid-cols-2 gap-3 p-4 rounded-2xl bg-background/20 border-2 border-border/30 max-h-[160px] overflow-y-auto shadow-none custom-scrollbar">
+
+            <div className={cn("grid gap-3 p-4 rounded-2xl bg-background/20 border-2 border-border/30 max-h-[220px] overflow-y-auto shadow-none custom-scrollbar", customSplit ? "grid-cols-1" : "grid-cols-2")}>
               {users.map((user) => (
                 <div key={user.id} className="flex items-center space-x-3 p-2 rounded-xl hover:bg-primary/5 transition-colors border border-transparent hover:border-primary/10">
                   <Checkbox
@@ -296,35 +328,80 @@ export function EditEntryDialog({ entry, users, currency, currentUserId, trigger
                     htmlFor={`edit-user-${user.id}`}
                     className="text-sm font-bold leading-none cursor-pointer select-none opacity-80 flex-1 min-w-0"
                   >
-                    <UserLabel 
-                      name={user.name} 
-                      isMe={user.linked_user_id === currentUserId} 
+                    <UserLabel
+                      name={user.name}
+                      isMe={user.linked_user_id === currentUserId}
                       className="text-xs"
                     />
                   </label>
+                  {customSplit && presentUserIds.has(user.id) && (
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={customAmounts[user.id] ?? ""}
+                      onChange={(e) => setCustomAmounts((prev) => ({ ...prev, [user.id]: e.target.value }))}
+                      className="h-8 w-24 text-right text-xs font-black bg-background/50 border-primary/20 rounded-lg px-2"
+                    />
+                  )}
                 </div>
               ))}
             </div>
+          </div>
+
+          <div className="grid gap-2.5">
+            <Label htmlFor="edit-notes" className="text-xs font-black uppercase tracking-widest text-muted-foreground ml-1">What Did Everyone Eat? (optional)</Label>
+            <Textarea
+              id="edit-notes"
+              placeholder="e.g. Chicken Biryani, Cold Drinks..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              className="min-h-[60px] bg-background/50 border-border/40 rounded-xl px-4 py-3 resize-none"
+            />
           </div>
 
           <div className="p-5 rounded-3xl bg-primary/5 border border-primary/10 space-y-3 relative overflow-hidden group">
             <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
               <Calculator className="h-12 w-12 text-primary" />
             </div>
-            <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
-              <span className="flex items-center gap-1.5">
-                New Calculation
-              </span>
-              <span>{currency}{total.toLocaleString()} ÷ {presentCount}</span>
-            </div>
-            <div className="flex justify-between items-end pt-1">
-              <span className="text-xs font-black uppercase tracking-widest opacity-80">
-                Share / Person
-              </span>
-              <span className="text-3xl font-black text-primary tracking-tighter">
-                {currency}{sharePerPerson.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
-            </div>
+            {customSplit ? (
+              <>
+                <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                  <span className="flex items-center gap-1.5">
+                    Custom Split Total
+                  </span>
+                </div>
+                <div className="flex justify-between items-end pt-1">
+                  <span className="text-xs font-black uppercase tracking-widest opacity-80">
+                    Entered / Total
+                  </span>
+                  <span className={cn(
+                    "text-3xl font-black tracking-tighter",
+                    Math.abs(customTotal - total) > 0.01 ? "text-red-500" : "text-emerald-500"
+                  )}>
+                    {currency}{customTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    <span className="text-base text-muted-foreground"> / {currency}{total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">
+                  <span className="flex items-center gap-1.5">
+                    New Calculation
+                  </span>
+                  <span>{currency}{total.toLocaleString()} ÷ {presentCount}</span>
+                </div>
+                <div className="flex justify-between items-end pt-1">
+                  <span className="text-xs font-black uppercase tracking-widest opacity-80">
+                    Share / Person
+                  </span>
+                  <span className="text-3xl font-black text-primary tracking-tighter">
+                    {currency}{sharePerPerson.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </>
+            )}
             {extraPayment > 0 && (
               <div className="flex justify-between items-end pt-1 border-t border-primary/10">
                 <span className="text-xs font-black uppercase tracking-widest opacity-80">

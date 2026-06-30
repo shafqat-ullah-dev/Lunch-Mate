@@ -44,6 +44,7 @@ type EntryData = {
   id: string
   date: string
   totalExpense: number
+  notes?: string | null
   userDetails: UserDetail[]
 }
 
@@ -99,6 +100,7 @@ function PaymentAmountEdit({ entryId, userId, initialValue, entryData, currency,
                 const result = await updateEntry(entryId, {
                   date: entryData.date,
                   totalExpense: entryData.totalExpense,
+                  notes: entryData.notes || undefined,
                   shares: entryData.userDetails.filter(d => d.isPresent).map(d => ({
                     userId: d.userId,
                     amount: d.share
@@ -177,8 +179,8 @@ function PaymentAmountEdit({ entryId, userId, initialValue, entryData, currency,
   )
 }
 
-function TotalExpenseEdit({ id, initialValue, date, currency, userDetails, currentUserId, isAdmin }: {
-  id: string, initialValue: number, date: string, currency: string, userDetails: UserDetail[], currentUserId?: string, isAdmin: boolean
+function TotalExpenseEdit({ id, initialValue, date, notes, currency, userDetails, currentUserId, isAdmin }: {
+  id: string, initialValue: number, date: string, notes?: string | null, currency: string, userDetails: UserDetail[], currentUserId?: string, isAdmin: boolean
 }) {
   const [isEditing, setIsEditing] = useState(false)
   const [value, setValue] = useState(initialValue.toString())
@@ -211,6 +213,7 @@ function TotalExpenseEdit({ id, initialValue, date, currency, userDetails, curre
                 const result = await updateEntry(id, {
                   date,
                   totalExpense: newTotal,
+                  notes: notes || undefined,
                   shares: presentIds.map(uid => ({ userId: uid, amount: newShare })),
                   payments: userDetails.filter(d => d.paid > 0).map(d => ({ userId: d.userId, amount: d.paid }))
                 })
@@ -321,7 +324,7 @@ export function DailyLunchTracker({ entries, users, currency, currentUserId, isA
               <TableHeader>
                 <TableRow className="bg-primary/5 hover:bg-primary/5 border-none h-10">
                   <TableHead className="sticky left-0 z-30 h-10 bg-card/95 backdrop-blur-md border-r-2 border-primary/20 shadow-none" />
-                  <TableHead colSpan={3} className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground h-10 px-6">1. Metadata</TableHead>
+                  <TableHead colSpan={4} className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground h-10 px-6">1. Metadata</TableHead>
                   <TableHead colSpan={users.length} className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-500 text-center border-l border-primary/10 h-10">2. Attendance</TableHead>
                   <TableHead className="w-0 p-0 border-r border-primary/10 h-10" />
                   <TableHead colSpan={users.length} className="text-[9px] font-black uppercase tracking-[0.2em] text-primary text-center border-l border-primary/10 h-10">3. Shares</TableHead>
@@ -335,7 +338,8 @@ export function DailyLunchTracker({ entries, users, currency, currentUserId, isA
                 <TableHead className="sticky left-0 z-20 font-bold text-primary px-4 whitespace-nowrap bg-primary/10 backdrop-blur-sm border-r-2 border-primary/20 shadow-none">Date</TableHead>
                 <TableHead className="font-bold text-primary whitespace-nowrap">Day</TableHead>
                 <TableHead className="text-center font-bold text-primary px-4 whitespace-nowrap">Total Expense</TableHead>
-                <TableHead className="font-bold text-primary border-r border-primary/5 px-4 min-w-[140px] whitespace-nowrap">Paid By</TableHead>
+                <TableHead className="font-bold text-primary px-4 min-w-[140px] whitespace-nowrap">Paid By</TableHead>
+                <TableHead className="font-bold text-primary border-r border-primary/5 px-4 min-w-[160px] whitespace-nowrap">What Ate</TableHead>
                 {users.map((user) => (
                   <TableHead
                     key={`${user.id}-present`}
@@ -398,7 +402,7 @@ export function DailyLunchTracker({ entries, users, currency, currentUserId, isA
               {entries.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={8 + users.length * 4}
+                    colSpan={9 + users.length * 4}
                     className="py-12 text-center text-muted-foreground bg-muted/5 rounded-2xl border-2 border-dashed border-border/50"
                   >
                     <div className="flex flex-col items-center gap-3">
@@ -426,13 +430,14 @@ export function DailyLunchTracker({ entries, users, currency, currentUserId, isA
                         id={entry.id}
                         initialValue={entry.totalExpense}
                         date={entry.date}
+                        notes={entry.notes}
                         currency={currency || "₹"}
                         userDetails={entry.userDetails}
                         currentUserId={currentUserId}
                         isAdmin={isAdmin}
                       />
                     </TableCell>
-                    <TableCell className="text-center border-r border-primary/5 px-4 h-full">
+                    <TableCell className="text-center px-4 h-full">
                       <Select
                         disabled={!isAdmin}
                         defaultValue={entry.userDetails.find(d => d.paid > 0)?.userId || ""}
@@ -445,6 +450,7 @@ export function DailyLunchTracker({ entries, users, currency, currentUserId, isA
                             const result = await updateEntry(entry.id, {
                               date: entry.date,
                               totalExpense: entry.totalExpense,
+                              notes: entry.notes || undefined,
                               shares: entry.userDetails.filter(d => d.isPresent).map(d => ({
                                 userId: d.userId,
                                 amount: d.share
@@ -496,6 +502,15 @@ export function DailyLunchTracker({ entries, users, currency, currentUserId, isA
                         </SelectContent>
                       </Select>
                     </TableCell>
+                    <TableCell className="text-muted-foreground text-xs border-r border-primary/5 px-4 max-w-[160px]">
+                      {entry.notes ? (
+                        <span className="block truncate" title={entry.notes}>
+                          {entry.notes}
+                        </span>
+                      ) : (
+                        <span className="italic opacity-40">—</span>
+                      )}
+                    </TableCell>
                     {users.map((user) => {
                       const detail = entry.userDetails.find((d) => d.userId === user.id)
                       return (
@@ -533,6 +548,7 @@ export function DailyLunchTracker({ entries, users, currency, currentUserId, isA
                                   const result = await updateEntry(entry.id, {
                                     date: entry.date,
                                     totalExpense: newTotal,
+                                    notes: entry.notes || undefined,
                                     shares: newPresentIds.map(id => ({ userId: id, amount: newShare })),
                                     payments: entry.userDetails
                                       .filter(d => d.paid > 0)

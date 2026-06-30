@@ -23,6 +23,7 @@ export type LunchEntry = {
   id: string
   date: string
   total_expense: number
+  notes: string | null
   org_id: string
   created_at: string
 }
@@ -57,6 +58,7 @@ export type EntryWithDetails = {
   id: string
   date: string
   total_expense: number
+  notes: string | null
   shares: { user_id: string; user_name: string; share_amount: number }[]
   payments: { user_id: string; user_name: string; paid_amount: number }[]
 }
@@ -387,6 +389,7 @@ export async function getEntriesWithDetails(month?: string): Promise<EntryWithDe
     id: entry.id,
     date: entry.date,
     total_expense: Number(entry.total_expense),
+    notes: entry.notes ?? null,
     shares: shares?.filter((s) => s.entry_id === entry.id).map((s) => ({
       user_id: s.user_id,
       user_name: userMap.get(s.user_id) || "Unknown",
@@ -404,6 +407,7 @@ export async function getEntriesWithDetails(month?: string): Promise<EntryWithDe
 export async function addEntry(data: {
   date: string
   totalExpense: number
+  notes?: string
   shares: { userId: string; amount: number }[]
   payments: { userId: string; amount: number }[]
 }): Promise<{ success: boolean; error?: string }> {
@@ -417,7 +421,7 @@ export async function addEntry(data: {
 
     const { data: entry, error: entryError } = await supabase
       .from("lunch_entries")
-      .insert({ date: data.date, total_expense: data.totalExpense, org_id: orgId })
+      .insert({ date: data.date, total_expense: data.totalExpense, notes: data.notes?.trim() || null, org_id: orgId })
       .select()
       .single()
 
@@ -474,6 +478,7 @@ export async function updateEntry(
   data: {
     date: string
     totalExpense: number
+    notes?: string
     shares: { userId: string; amount: number }[]
     payments: { userId: string; amount: number }[]
   }
@@ -489,7 +494,7 @@ export async function updateEntry(
     // 1. Update the main entry
     const { error: entryError } = await supabase
       .from("lunch_entries")
-      .update({ date: data.date, total_expense: data.totalExpense })
+      .update({ date: data.date, total_expense: data.totalExpense, notes: data.notes?.trim() || null })
       .eq("id", entryId)
       .eq("org_id", orgId)
 
@@ -836,7 +841,7 @@ export async function getDailyLunchData(month?: string) {
 
     const settledDetails = calculateSettlementAwareBalances(Number(entry.total_expense), userDetails)
 
-    return { id: entry.id, date: entry.date, totalExpense: Number(entry.total_expense), userDetails: settledDetails }
+    return { id: entry.id, date: entry.date, totalExpense: Number(entry.total_expense), notes: entry.notes ?? null, userDetails: settledDetails }
   })
 
   return { entries: entriesWithDetails.reverse(), users: users.map(u => ({ ...u, totalBalance: balanceMap.get(u.id) || 0 })) }
@@ -846,6 +851,7 @@ interface LunchEntryDetail {
   id: string
   date: string
   totalExpense: number
+  notes: string | null
   userDetails: UserSettlementDetail[]
 }
 
