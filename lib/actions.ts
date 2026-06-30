@@ -49,10 +49,28 @@ export type UserBalance = {
   id: string
   name: string
   linked_user_id: string | null
-  totalPaid: number
-  totalShares: number
-  balance: number
+  totalPaid: number | null
+  totalShares: number | null
+  balance: number | null
   daysPresent: number
+}
+
+// Non-admin viewers can see that an entry happened (dates, totals) but not
+// other members' individual money figures. Mask everything but the viewer's
+// own row by setting the given fields to null.
+function maskOthers<T extends { userId: string }>(
+  items: T[],
+  viewerLunchUserId: string | null,
+  fields: (keyof T)[]
+): T[] {
+  return items.map((item) => {
+    if (item.userId === viewerLunchUserId) return item
+    const masked = { ...item }
+    for (const field of fields) {
+      ;(masked as any)[field] = null
+    }
+    return masked
+  })
 }
 
 export type EntryWithDetails = {
@@ -292,7 +310,7 @@ export async function getEntries(month?: string): Promise<LunchEntry[]> {
 export async function getUserBalances(): Promise<UserBalance[]> {
   const auth = await getAuthorizedOrgId()
   if (!auth) return []
-  const { orgId } = auth
+  const { orgId, role, userId } = auth
   const supabase = await createClient()
 
   // Get all users in org (synced)
@@ -335,7 +353,7 @@ export async function getUserBalances(): Promise<UserBalance[]> {
     return { id: entry.id, userDetails: settledDetails }
   })
 
-  return users.map((user) => {
+  const balances: UserBalance[] = users.map((user) => {
     const userEntries = processedEntries.map((e) => e.userDetails.find((ud) => ud.userId === user.id))
     const totalPaid = userEntries.reduce((sum: number, ud) => sum + (ud?.paid || 0), 0)
     const totalShares = userEntries.reduce((sum: number, ud) => sum + (ud?.share || 0), 0)
@@ -354,13 +372,22 @@ export async function getUserBalances(): Promise<UserBalance[]> {
       daysPresent: userEntries.filter((ud) => ud?.isPresent).length,
     }
   })
+
+  if (role === "admin") return balances
+
+  const viewerLunchUserId = users.find((u) => u.linked_user_id === userId)?.id || null
+  return balances.map((b) =>
+    b.id === viewerLunchUserId
+      ? b
+      : { ...b, totalPaid: null, totalShares: null, balance: null }
+  )
 }
 
 // Get entries with full details for current org
 export async function getEntriesWithDetails(month?: string): Promise<EntryWithDetails[]> {
   const auth = await getAuthorizedOrgId()
   if (!auth) return []
-  const { orgId } = auth
+  const { orgId, role, userId } = auth
   const supabase = await createClient()
 
   let entriesQuery = supabase
@@ -379,8 +406,9 @@ export async function getEntriesWithDetails(month?: string): Promise<EntryWithDe
   const { data: entries } = await entriesQuery
   if (!entries) return []
 
-  const { data: users } = await supabase.from("lunch_users").select("id, name").eq("org_id", orgId)
+  const { data: users } = await supabase.from("lunch_users").select("id, name, linked_user_id").eq("org_id", orgId)
   const userMap = new Map(users?.map((u) => [u.id, u.name]) || [])
+  const viewerLunchUserId = role === "admin" ? null : users?.find((u) => u.linked_user_id === userId)?.id || null
 
   const entryIds = entries.map((e) => e.id)
   const { data: shares } = await supabase.from("lunch_shares").select("*").in("entry_id", entryIds).eq("org_id", orgId)
@@ -391,16 +419,20 @@ export async function getEntriesWithDetails(month?: string): Promise<EntryWithDe
     date: entry.date,
     total_expense: Number(entry.total_expense),
     notes: entry.notes ?? null,
-    shares: shares?.filter((s) => s.entry_id === entry.id).map((s) => ({
-      user_id: s.user_id,
-      user_name: userMap.get(s.user_id) || "Unknown",
-      share_amount: Number(s.share_amount),
-    })) || [],
-    payments: payments?.filter((p) => p.entry_id === entry.id).map((p) => ({
-      user_id: p.user_id,
-      user_name: userMap.get(p.user_id) || "Unknown",
-      paid_amount: Number(p.paid_amount),
-    })) || [],
+    shares: shares?.filter((s) => s.entry_id === entry.id)
+      .filter((s) => role === "admin" || s.user_id === viewerLunchUserId)
+      .map((s) => ({
+        user_id: s.user_id,
+        user_name: userMap.get(s.user_id) || "Unknown",
+        share_amount: Number(s.share_amount),
+      })) || [],
+    payments: payments?.filter((p) => p.entry_id === entry.id)
+      .filter((p) => role === "admin" || p.user_id === viewerLunchUserId)
+      .map((p) => ({
+        user_id: p.user_id,
+        user_name: userMap.get(p.user_id) || "Unknown",
+        paid_amount: Number(p.paid_amount),
+      })) || [],
   }))
 }
 
@@ -583,7 +615,7 @@ export async function getContributionData() {
 export async function getWeeklySummary() {
   const auth = await getAuthorizedOrgId()
   if (!auth) return { weeks: [], users: [], overallBalances: [] }
-  const { orgId } = auth
+  const { orgId, role, userId } = auth
   const supabase = await createClient()
 
   const users = await getUsers()
@@ -690,14 +722,27 @@ export async function getWeeklySummary() {
     }
   })
 
-  return { weeks, users, overallBalances }
+  if (role === "admin") return { weeks, users, overallBalances }
+
+  const viewerLunchUserId = users.find((u) => u.linked_user_id === userId)?.id || null
+  const maskedWeeks = weeks.map((week) => ({
+    ...week,
+    userStats: maskOthers(week.userStats, viewerLunchUserId, ["paid", "shares", "balance"]),
+    entries: week.entries.map((entry) => ({
+      ...entry,
+      userDetails: maskOthers(entry.userDetails, viewerLunchUserId, ["share", "paid", "balance"]),
+    })),
+  }))
+  const maskedOverallBalances = maskOthers(overallBalances, viewerLunchUserId, ["balance"])
+
+  return { weeks: maskedWeeks, users, overallBalances: maskedOverallBalances }
 }
 
 // Get monthly summary data for current org
 export async function getMonthlySummary() {
   const auth = await getAuthorizedOrgId()
   if (!auth) return { months: [], users: [] }
-  const { orgId } = auth
+  const { orgId, role, userId } = auth
   const supabase = await createClient()
 
   const users = await getUsers()
@@ -778,7 +823,19 @@ export async function getMonthlySummary() {
     return { monthKey: month.monthKey, totalExpense: month.totalExpense, userStats, entries: monthEntryDetails }
   }).sort((a, b) => a.monthKey.localeCompare(b.monthKey))
 
-  return { months, users }
+  if (role === "admin") return { months, users }
+
+  const viewerLunchUserId = users.find((u) => u.linked_user_id === userId)?.id || null
+  const maskedMonths = months.map((month) => ({
+    ...month,
+    userStats: maskOthers(month.userStats, viewerLunchUserId, ["paid", "shares", "balance"]),
+    entries: month.entries.map((entry) => ({
+      ...entry,
+      userDetails: maskOthers(entry.userDetails, viewerLunchUserId, ["share", "paid", "balance"]),
+    })),
+  }))
+
+  return { months: maskedMonths, users }
 }
 
 export async function getDailyLunchData(month?: string) {

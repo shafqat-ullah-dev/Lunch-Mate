@@ -12,7 +12,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { formatDate } from "@/lib/date-utils"
-import { ChevronDown, ChevronRight, Check } from "lucide-react"
+import { ChevronDown, ChevronRight, Check, Lock } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 
 type EntryDetail = {
@@ -23,17 +23,25 @@ type EntryDetail = {
     userId: string
     userName: string
     isPresent: boolean
-    share: number
-    paid: number
+    share: number | null
+    paid: number | null
   }[]
 }
 
 type UserStat = {
   userId: string
   userName: string
-  paid: number
-  shares: number
-  balance: number
+  paid: number | null
+  shares: number | null
+  balance: number | null
+}
+
+function PrivateValue() {
+  return (
+    <span className="inline-flex items-center justify-center gap-1 text-muted-foreground/40">
+      <Lock className="h-3 w-3" />
+    </span>
+  )
 }
 
 type MonthData = {
@@ -176,10 +184,14 @@ export function MonthlySummary({
                             key={`${month.monthKey}-${user.id}-paid`}
                             className="text-center tabular-nums py-4"
                           >
-                            {currency}{(stat?.paid || 0).toLocaleString("en-IN", {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })}
+                            {stat?.paid === null ? (
+                              <PrivateValue />
+                            ) : (
+                              `${currency}${(stat?.paid || 0).toLocaleString("en-IN", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}`
+                            )}
                           </TableCell>
                         )
                       })}
@@ -191,17 +203,21 @@ export function MonthlySummary({
                             key={`${month.monthKey}-${user.id}-bal`}
                             className={cn(
                               "text-center tabular-nums font-bold py-4",
-                              balance > 0
+                              stat?.balance !== null && (balance > 0
                                 ? "text-emerald-500"
                                 : balance < 0
                                 ? "text-red-500"
-                                : "text-muted-foreground"
+                                : "text-muted-foreground")
                             )}
                           >
-                            {balance >= 0 ? "+" : "-"}{currency}{Math.abs(balance).toLocaleString("en-IN", {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })}
+                            {stat?.balance === null ? (
+                              <PrivateValue />
+                            ) : (
+                              `${balance >= 0 ? "+" : "-"}${currency}${Math.abs(balance).toLocaleString("en-IN", {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}`
+                            )}
                           </TableCell>
                         )
                       })}
