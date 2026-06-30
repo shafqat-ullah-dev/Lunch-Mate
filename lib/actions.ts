@@ -3,6 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { getAuthorizedOrgId } from "./org-actions"
+import { notifyOrgMembers } from "./push-actions"
 
 // Get current user profile
 export async function getCurrentUser() {
@@ -441,6 +442,14 @@ export async function addEntry(data: {
 
     revalidatePath("/admin")
     revalidatePath("/user")
+
+    const { data: { user } } = await supabase.auth.getUser()
+    notifyOrgMembers(orgId, user?.id, {
+      title: "New Lunch Entry",
+      body: `An entry for ${data.date} (${data.totalExpense}) was just added.`,
+      url: "/user",
+    }).catch(() => {})
+
     return { success: true }
   } catch (e: any) {
     return { success: false, error: e.message }
