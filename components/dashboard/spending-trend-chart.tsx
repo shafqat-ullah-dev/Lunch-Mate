@@ -1,6 +1,7 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { LineChart as LineChartIcon } from "lucide-react"
 import {
   LineChart,
   Line,
@@ -24,6 +25,7 @@ export function SpendingTrendChart({ data, currency }: SpendingTrendChartProps) 
       day: "numeric",
     }),
   }))
+  const hasData = data.some((d) => d.expense > 0)
 
   return (
     <Card className="bg-card/50 backdrop-blur-sm border-border/50">
@@ -31,6 +33,14 @@ export function SpendingTrendChart({ data, currency }: SpendingTrendChartProps) 
         <CardTitle className="text-lg font-black tracking-tight uppercase">Spending Trend</CardTitle>
       </CardHeader>
       <CardContent className="px-8 pb-12">
+        {!hasData ? (
+          <div className="h-80 flex flex-col items-center justify-center gap-3 text-center">
+            <div className="p-3 rounded-full bg-primary/5">
+              <LineChartIcon className="h-8 w-8 text-muted-foreground/40" />
+            </div>
+            <p className="text-sm font-bold text-muted-foreground">No spending recorded yet</p>
+          </div>
+        ) : (
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={formattedData}>
@@ -82,6 +92,7 @@ export function SpendingTrendChart({ data, currency }: SpendingTrendChartProps) 
             </LineChart>
           </ResponsiveContainer>
         </div>
+        )}
       </CardContent>
     </Card>
   )

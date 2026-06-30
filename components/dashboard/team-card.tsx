@@ -2,8 +2,20 @@
 
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Building2, ShieldCheck, Trash2 } from "lucide-react"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { Building2, ShieldCheck, Trash2, Loader2 } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { deleteOrganization } from "@/lib/org-actions"
 import { useTransition } from "react"
 import { toast } from "sonner"
@@ -19,23 +31,22 @@ interface TeamCardProps {
 
 export function TeamCard({ org }: TeamCardProps) {
   const [isPending, startTransition] = useTransition()
+  const router = useRouter()
 
   const handleDelete = () => {
-    if (confirm(`Are you sure you want to delete ${org.name}? This will remove all associated data.`)) {
-      startTransition(async () => {
-        try {
-          const result = await deleteOrganization(org.id)
-          if (result.success) {
-            toast.success(`Deleted ${org.name} successfully`)
-            window.location.reload()
-          } else {
-            toast.error(result.error || "Failed to delete team")
-          }
-        } catch (error: any) {
-          toast.error(error.message || "An unexpected error occurred")
+    startTransition(async () => {
+      try {
+        const result = await deleteOrganization(org.id)
+        if (result.success) {
+          toast.success(`Deleted ${org.name} successfully`)
+          router.refresh()
+        } else {
+          toast.error(result.error || "Failed to delete team")
         }
-      })
-    }
+      } catch (error: any) {
+        toast.error(error.message || "An unexpected error occurred")
+      }
+    })
   }
 
   return (
@@ -71,15 +82,43 @@ export function TeamCard({ org }: TeamCardProps) {
             </Link>
           </Button>
           {org.role === 'admin' && (
-            <Button 
-              variant="outline" 
-              size="icon" 
-              disabled={isPending}
-              className="rounded-xl h-12 w-12 shrink-0 border-red-500/20 hover:bg-red-500/10 hover:text-red-500 text-red-500/70 transition-all active:scale-95"
-              onClick={handleDelete}
-            >
-              <Trash2 className={isPending ? "h-5 w-5 animate-spin" : "h-5 w-5"} />
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  disabled={isPending}
+                  aria-label={`Delete team ${org.name}`}
+                  className="rounded-xl h-12 w-12 shrink-0 border-red-500/20 hover:bg-red-500/10 hover:text-red-500 text-red-500/70 transition-all active:scale-95"
+                >
+                  {isPending ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-5 w-5" />
+                  )}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="rounded-[2rem] border-2 border-destructive/20 shadow-none backdrop-blur-3xl p-8">
+                <AlertDialogHeader>
+                  <div className="mx-auto w-16 h-16 bg-destructive/10 rounded-2xl flex items-center justify-center mb-6">
+                    <Trash2 className="h-8 w-8 text-destructive" />
+                  </div>
+                  <AlertDialogTitle className="text-2xl font-black uppercase tracking-tight text-center">Delete Team?</AlertDialogTitle>
+                  <AlertDialogDescription className="text-center text-sm font-medium leading-relaxed">
+                    Are you sure you want to delete <span className="font-black text-foreground">{org.name}</span>? This will permanently remove all associated data, including every member, entry, and balance. This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter className="mt-8 gap-4">
+                  <AlertDialogCancel className="h-14 rounded-xl font-black uppercase tracking-widest text-xs border-2">Keep Team</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="h-14 rounded-xl font-black uppercase tracking-widest text-xs bg-destructive text-white hover:bg-destructive/90 border-2 border-destructive/30 shadow-none"
+                    onClick={handleDelete}
+                  >
+                    Delete Forever
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
         </div>
       </CardHeader>

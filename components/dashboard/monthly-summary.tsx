@@ -139,10 +139,19 @@ export function MonthlySummary({
               ) : (
                 months.map((month) => (
                   <Fragment key={month.monthKey}>
-                    <TableRow 
-                      key={month.monthKey} 
-                      className="hover:bg-muted/30 cursor-pointer transition-colors border-b border-border/5 group"
+                    <TableRow
+                      key={month.monthKey}
+                      className="hover:bg-muted/30 cursor-pointer transition-colors border-b border-border/5 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                       onClick={() => toggleMonth(month.monthKey)}
+                      role="button"
+                      tabIndex={0}
+                      aria-expanded={expandedMonths.has(month.monthKey)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault()
+                          toggleMonth(month.monthKey)
+                        }
+                      }}
                     >
                       <TableCell className="py-4">
                         {expandedMonths.has(month.monthKey) ? (
@@ -189,7 +198,7 @@ export function MonthlySummary({
                                 : "text-muted-foreground"
                             )}
                           >
-                            {currency}{Math.abs(balance).toLocaleString("en-IN", {
+                            {balance >= 0 ? "+" : "-"}{currency}{Math.abs(balance).toLocaleString("en-IN", {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,
                             })}

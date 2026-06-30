@@ -23,6 +23,7 @@ export type LunchEntry = {
   id: string
   date: string
   total_expense: number
+  notes: string | null
   org_id: string
   created_at: string
 }
@@ -57,6 +58,7 @@ export type EntryWithDetails = {
   id: string
   date: string
   total_expense: number
+  notes: string | null
   shares: { user_id: string; user_name: string; share_amount: number }[]
   payments: { user_id: string; user_name: string; paid_amount: number }[]
 }
@@ -387,6 +389,7 @@ export async function getEntriesWithDetails(month?: string): Promise<EntryWithDe
     id: entry.id,
     date: entry.date,
     total_expense: Number(entry.total_expense),
+    notes: entry.notes ?? null,
     shares: shares?.filter((s) => s.entry_id === entry.id).map((s) => ({
       user_id: s.user_id,
       user_name: userMap.get(s.user_id) || "Unknown",
@@ -404,6 +407,7 @@ export async function getEntriesWithDetails(month?: string): Promise<EntryWithDe
 export async function addEntry(data: {
   date: string
   totalExpense: number
+  notes?: string
   shares: { userId: string; amount: number }[]
   payments: { userId: string; amount: number }[]
 }): Promise<{ success: boolean; error?: string }> {
@@ -417,7 +421,7 @@ export async function addEntry(data: {
 
     const { data: entry, error: entryError } = await supabase
       .from("lunch_entries")
-      .insert({ date: data.date, total_expense: data.totalExpense, org_id: orgId })
+      .insert({ date: data.date, total_expense: data.totalExpense, notes: data.notes?.trim() || null, org_id: orgId })
       .select()
       .single()
 
@@ -474,6 +478,7 @@ export async function updateEntry(
   data: {
     date: string
     totalExpense: number
+    notes?: string
     shares: { userId: string; amount: number }[]
     payments: { userId: string; amount: number }[]
   }
@@ -489,7 +494,7 @@ export async function updateEntry(
     // 1. Update the main entry
     const { error: entryError } = await supabase
       .from("lunch_entries")
-      .update({ date: data.date, total_expense: data.totalExpense })
+      .update({ date: data.date, total_expense: data.totalExpense, notes: data.notes?.trim() || null })
       .eq("id", entryId)
       .eq("org_id", orgId)
 
@@ -767,26 +772,45 @@ export async function getMonthlySummary() {
   return { months, users }
 }
 
-export async function getDailyLunchData() {
+export async function getDailyLunchData(month?: string) {
   const auth = await getAuthorizedOrgId()
   if (!auth) return { entries: [], users: [] }
   const { orgId } = auth
   const supabase = await createClient()
 
   const users = await getUsers()
-  
-  // Parallelize database fetches
-  const [entriesRes, sharesRes, paymentsRes] = await Promise.all([
-    supabase.from("lunch_entries").select("*").eq("org_id", orgId).order("date", { ascending: true }),
-    supabase.from("lunch_shares").select("*").eq("org_id", orgId),
-    supabase.from("lunch_payments").select("*").eq("org_id", orgId)
-  ])
 
-  const { data: entries } = entriesRes
-  const { data: shares } = sharesRes
-  const { data: payments } = paymentsRes
+  let entriesQuery = supabase
+    .from("lunch_entries")
+    .select("*")
+    .eq("org_id", orgId)
+    .order("date", { ascending: true })
+
+  if (month) {
+    const [year, monthNum] = month.split("-")
+    const startDate = `${year}-${monthNum}-01`
+    const endDate = new Date(parseInt(year), parseInt(monthNum), 0).toISOString().split("T")[0]
+    entriesQuery = entriesQuery.gte("date", startDate).lte("date", endDate)
+  }
+
+  const { data: entries } = await entriesQuery
 
   if (!entries || !users) return { entries: [], users: [] }
+
+  const entryIds = entries.map((e) => e.id)
+
+  // Parallelize remaining database fetches, scoped to the filtered entries
+  const [sharesRes, paymentsRes] = await Promise.all([
+    entryIds.length > 0
+      ? supabase.from("lunch_shares").select("*").eq("org_id", orgId).in("entry_id", entryIds)
+      : Promise.resolve({ data: [] }),
+    entryIds.length > 0
+      ? supabase.from("lunch_payments").select("*").eq("org_id", orgId).in("entry_id", entryIds)
+      : Promise.resolve({ data: [] }),
+  ])
+
+  const { data: shares } = sharesRes
+  const { data: payments } = paymentsRes
 
   const sortedEntries = entries || []
 
@@ -817,7 +841,7 @@ export async function getDailyLunchData() {
 
     const settledDetails = calculateSettlementAwareBalances(Number(entry.total_expense), userDetails)
 
-    return { id: entry.id, date: entry.date, totalExpense: Number(entry.total_expense), userDetails: settledDetails }
+    return { id: entry.id, date: entry.date, totalExpense: Number(entry.total_expense), notes: entry.notes ?? null, userDetails: settledDetails }
   })
 
   return { entries: entriesWithDetails.reverse(), users: users.map(u => ({ ...u, totalBalance: balanceMap.get(u.id) || 0 })) }
@@ -827,6 +851,7 @@ interface LunchEntryDetail {
   id: string
   date: string
   totalExpense: number
+  notes: string | null
   userDetails: UserSettlementDetail[]
 }
 
@@ -879,8 +904,9 @@ function calculateSettlementAwareBalances(
   })
 }
 
-// Settle all historical debt for a user by applying payments to past entries where they owe money
-export async function settleUserDebt(userId: string): Promise<{ success: boolean; error?: string }> {
+// Settle historical debt for a user by applying payments to past entries where they owe money.
+// If `amount` is provided, only that much is applied (oldest debts first); otherwise all debt is settled.
+export async function settleUserDebt(userId: string, amount?: number): Promise<{ success: boolean; error?: string }> {
   try {
     const auth = await getAuthorizedOrgId()
     if (!auth) return { success: false, error: "No organization found" }
@@ -889,40 +915,41 @@ export async function settleUserDebt(userId: string): Promise<{ success: boolean
 
     // Use getDailyLunchData to find all entries where user has a negative balance
     const { entries } = await getDailyLunchData()
-    
-    // Filter for entries where this user has debt (balance < 0)
-    const debtEntries = entries.filter(e => {
-      const detail = e.userDetails.find(ud => ud.userId === userId)
-      return detail && detail.balance < 0
-    })
+
+    // Filter for entries where this user has debt (balance < 0), oldest first
+    const debtEntries = entries
+      .filter(e => {
+        const detail = e.userDetails.find(ud => ud.userId === userId)
+        return detail && detail.balance < 0
+      })
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
     if (debtEntries.length === 0) return { success: true }
 
     const supabase = await createClient()
-    
+
     // Process each debt entry - adding a payment record for the debtor
-    // to cover their specific share deficit on that day.
-    const results = await Promise.all(debtEntries.map(async (entry) => {
+    // to cover their specific share deficit on that day, capped by `amount` if given.
+    let remaining = amount
+    const inserts: { entry_id: string; user_id: string; paid_amount: number; org_id: string }[] = []
+    for (const entry of debtEntries) {
+      if (remaining !== undefined && remaining <= 0) break
+
       const detail = entry.userDetails.find(ud => ud.userId === userId)
-      if (!detail) return { success: true }
+      if (!detail) continue
 
       const debtAmount = Math.abs(detail.balance)
+      const payAmount = remaining !== undefined ? Math.min(debtAmount, remaining) : debtAmount
+      if (payAmount <= 0) continue
 
-      // Insert a payment record for this user to settle their debt for this specific entry
-      const { error } = await supabase
-        .from("lunch_payments")
-        .insert({
-          entry_id: entry.id,
-          user_id: userId,
-          paid_amount: debtAmount,
-          org_id: orgId
-        })
-      
-      return { success: !error, error: error?.message }
-    }))
+      inserts.push({ entry_id: entry.id, user_id: userId, paid_amount: payAmount, org_id: orgId })
+      if (remaining !== undefined) remaining -= payAmount
+    }
 
-    const firstError = results.find(r => !r.success)?.error
-    if (firstError) return { success: false, error: firstError }
+    if (inserts.length === 0) return { success: true }
+
+    const { error } = await supabase.from("lunch_payments").insert(inserts)
+    if (error) return { success: false, error: error.message }
 
     revalidatePath("/admin")
     revalidatePath("/admin/lunch")

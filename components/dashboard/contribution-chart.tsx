@@ -1,6 +1,7 @@
 "use client"
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { BarChart3 } from "lucide-react"
 import {
   BarChart,
   Bar,
@@ -18,12 +19,22 @@ interface ContributionChartProps {
 }
 
 export function ContributionChart({ data, currency }: ContributionChartProps) {
+  const hasData = data.some((d) => d.paid > 0 || d.shares > 0)
+
   return (
     <Card className="bg-card/50 backdrop-blur-sm border-border/50">
       <CardHeader className="pt-8 px-8 pb-4">
         <CardTitle className="text-lg font-black tracking-tight uppercase">Contribution Analysis</CardTitle>
       </CardHeader>
       <CardContent className="px-8 pb-12">
+        {!hasData ? (
+          <div className="h-80 flex flex-col items-center justify-center gap-3 text-center">
+            <div className="p-3 rounded-full bg-primary/5">
+              <BarChart3 className="h-8 w-8 text-muted-foreground/40" />
+            </div>
+            <p className="text-sm font-bold text-muted-foreground">No contributions yet</p>
+          </div>
+        ) : (
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} barGap={8}>
@@ -88,6 +99,7 @@ export function ContributionChart({ data, currency }: ContributionChartProps) {
             </BarChart>
           </ResponsiveContainer>
         </div>
+        )}
       </CardContent>
     </Card>
   )

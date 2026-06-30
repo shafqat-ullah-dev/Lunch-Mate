@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 
 import {
   Table,
@@ -15,10 +16,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Check, Receipt, Loader2, Pencil } from "lucide-react"
+import { Check, Receipt, Loader2, Pencil, ChevronLeft, ChevronRight } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
-import { formatDate, getDayName } from "@/lib/date-utils"
+import { formatDate, getDayName, formatMonthYear } from "@/lib/date-utils"
 import {
   Select,
   SelectContent,
@@ -43,6 +44,7 @@ type EntryData = {
   id: string
   date: string
   totalExpense: number
+  notes?: string | null
   userDetails: UserDetail[]
 }
 
@@ -98,6 +100,7 @@ function PaymentAmountEdit({ entryId, userId, initialValue, entryData, currency,
                 const result = await updateEntry(entryId, {
                   date: entryData.date,
                   totalExpense: entryData.totalExpense,
+                  notes: entryData.notes || undefined,
                   shares: entryData.userDetails.filter(d => d.isPresent).map(d => ({
                     userId: d.userId,
                     amount: d.share
@@ -176,8 +179,8 @@ function PaymentAmountEdit({ entryId, userId, initialValue, entryData, currency,
   )
 }
 
-function TotalExpenseEdit({ id, initialValue, date, currency, userDetails, currentUserId, isAdmin }: {
-  id: string, initialValue: number, date: string, currency: string, userDetails: UserDetail[], currentUserId?: string, isAdmin: boolean
+function TotalExpenseEdit({ id, initialValue, date, notes, currency, userDetails, currentUserId, isAdmin }: {
+  id: string, initialValue: number, date: string, notes?: string | null, currency: string, userDetails: UserDetail[], currentUserId?: string, isAdmin: boolean
 }) {
   const [isEditing, setIsEditing] = useState(false)
   const [value, setValue] = useState(initialValue.toString())
@@ -210,6 +213,7 @@ function TotalExpenseEdit({ id, initialValue, date, currency, userDetails, curre
                 const result = await updateEntry(id, {
                   date,
                   totalExpense: newTotal,
+                  notes: notes || undefined,
                   shares: presentIds.map(uid => ({ userId: uid, amount: newShare })),
                   payments: userDetails.filter(d => d.paid > 0).map(d => ({ userId: d.userId, amount: d.paid }))
                 })
@@ -259,15 +263,22 @@ function TotalExpenseEdit({ id, initialValue, date, currency, userDetails, curre
   )
 }
 
+function shiftMonth(month: string, delta: number): string {
+  const [year, monthNum] = month.split("-").map(Number)
+  const date = new Date(year, monthNum - 1 + delta, 1)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+}
+
 interface DailyLunchTrackerProps {
   entries: EntryData[]
   users: { id: string; name: string; linked_user_id?: string | null; totalBalance?: number }[]
   currency?: string
   currentUserId?: string
   isAdmin?: boolean
+  month?: string
 }
 
-export function DailyLunchTracker({ entries, users, currency, currentUserId, isAdmin = false }: DailyLunchTrackerProps) {
+export function DailyLunchTracker({ entries, users, currency, currentUserId, isAdmin = false, month }: DailyLunchTrackerProps) {
   return (
     <Card className="border-2 border-border/50 bg-card/40 backdrop-blur-2xl shadow-none rounded-[2rem] overflow-hidden">
       <CardHeader className="pb-4 pt-8 px-6 md:px-10">
@@ -281,7 +292,26 @@ export function DailyLunchTracker({ entries, users, currency, currentUserId, isA
             </CardTitle>
             <p className="text-[10px] md:text-xs font-bold text-muted-foreground uppercase tracking-widest">Manage daily lunch expenses and attendance</p>
           </div>
-          {isAdmin && <AddEntryDialog users={users} currency={currency} currentUserId={currentUserId} />}
+          <div className="flex items-center gap-3">
+            {month && (
+              <div className="flex items-center gap-1 rounded-xl border border-border/40 bg-background/50 p-1">
+                <Link href={`?month=${shiftMonth(month, -1)}`}>
+                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-lg">
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                </Link>
+                <span className="px-2 text-xs font-black uppercase tracking-widest min-w-[110px] text-center">
+                  {formatMonthYear(`${month}-01`)}
+                </span>
+                <Link href={`?month=${shiftMonth(month, 1)}`}>
+                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8 rounded-lg">
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+            )}
+            {isAdmin && <AddEntryDialog users={users} currency={currency} currentUserId={currentUserId} />}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="px-0 pb-10">
@@ -293,6 +323,7 @@ export function DailyLunchTracker({ entries, users, currency, currentUserId, isA
             <Table className="min-w-[1200px] lg:min-w-full border-separate border-spacing-0">
               <TableHeader>
                 <TableRow className="bg-primary/5 hover:bg-primary/5 border-none h-10">
+                  <TableHead className="sticky left-0 z-30 h-10 bg-card/95 backdrop-blur-md border-r-2 border-primary/20 shadow-none" />
                   <TableHead colSpan={4} className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground h-10 px-6">1. Metadata</TableHead>
                   <TableHead colSpan={users.length} className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-500 text-center border-l border-primary/10 h-10">2. Attendance</TableHead>
                   <TableHead className="w-0 p-0 border-r border-primary/10 h-10" />
@@ -304,10 +335,11 @@ export function DailyLunchTracker({ entries, users, currency, currentUserId, isA
                   <TableHead className="sticky right-0 z-30 h-10 bg-card/95 backdrop-blur-md border-l-2 border-primary/20 shadow-none" />
                 </TableRow>
               <TableRow className="bg-primary/10 hover:bg-primary/10 h-14">
-                <TableHead className="font-bold text-primary px-4 whitespace-nowrap">Date</TableHead>
+                <TableHead className="sticky left-0 z-20 font-bold text-primary px-4 whitespace-nowrap bg-primary/10 backdrop-blur-sm border-r-2 border-primary/20 shadow-none">Date</TableHead>
                 <TableHead className="font-bold text-primary whitespace-nowrap">Day</TableHead>
                 <TableHead className="text-center font-bold text-primary px-4 whitespace-nowrap">Total Expense</TableHead>
-                <TableHead className="font-bold text-primary border-r border-primary/5 px-4 min-w-[140px] whitespace-nowrap">Paid By</TableHead>
+                <TableHead className="font-bold text-primary px-4 min-w-[140px] whitespace-nowrap">Paid By</TableHead>
+                <TableHead className="font-bold text-primary border-r border-primary/5 px-4 min-w-[160px] whitespace-nowrap">What Ate</TableHead>
                 {users.map((user) => (
                   <TableHead
                     key={`${user.id}-present`}
@@ -370,7 +402,7 @@ export function DailyLunchTracker({ entries, users, currency, currentUserId, isA
               {entries.length === 0 ? (
                 <TableRow>
                   <TableCell
-                    colSpan={8 + users.length * 4}
+                    colSpan={9 + users.length * 4}
                     className="py-12 text-center text-muted-foreground bg-muted/5 rounded-2xl border-2 border-dashed border-border/50"
                   >
                     <div className="flex flex-col items-center gap-3">
@@ -387,7 +419,7 @@ export function DailyLunchTracker({ entries, users, currency, currentUserId, isA
               ) : (
                 entries.map((entry) => (
                   <TableRow key={entry.id} className="hover:bg-primary/5 transition-colors group">
-                    <TableCell className="font-bold whitespace-nowrap group-hover:text-primary transition-colors">
+                    <TableCell className="sticky left-0 z-10 font-bold whitespace-nowrap group-hover:text-primary transition-colors bg-card/95 backdrop-blur-md border-r-2 border-primary/20 shadow-none">
                       {formatDate(entry.date)}
                     </TableCell>
                     <TableCell className="text-center text-muted-foreground font-medium uppercase text-[10px]">
@@ -398,13 +430,14 @@ export function DailyLunchTracker({ entries, users, currency, currentUserId, isA
                         id={entry.id}
                         initialValue={entry.totalExpense}
                         date={entry.date}
+                        notes={entry.notes}
                         currency={currency || "₹"}
                         userDetails={entry.userDetails}
                         currentUserId={currentUserId}
                         isAdmin={isAdmin}
                       />
                     </TableCell>
-                    <TableCell className="text-center border-r border-primary/5 px-4 h-full">
+                    <TableCell className="text-center px-4 h-full">
                       <Select
                         disabled={!isAdmin}
                         defaultValue={entry.userDetails.find(d => d.paid > 0)?.userId || ""}
@@ -417,6 +450,7 @@ export function DailyLunchTracker({ entries, users, currency, currentUserId, isA
                             const result = await updateEntry(entry.id, {
                               date: entry.date,
                               totalExpense: entry.totalExpense,
+                              notes: entry.notes || undefined,
                               shares: entry.userDetails.filter(d => d.isPresent).map(d => ({
                                 userId: d.userId,
                                 amount: d.share
@@ -468,6 +502,15 @@ export function DailyLunchTracker({ entries, users, currency, currentUserId, isA
                         </SelectContent>
                       </Select>
                     </TableCell>
+                    <TableCell className="text-muted-foreground text-xs border-r border-primary/5 px-4 max-w-[160px]">
+                      {entry.notes ? (
+                        <span className="block truncate" title={entry.notes}>
+                          {entry.notes}
+                        </span>
+                      ) : (
+                        <span className="italic opacity-40">—</span>
+                      )}
+                    </TableCell>
                     {users.map((user) => {
                       const detail = entry.userDetails.find((d) => d.userId === user.id)
                       return (
@@ -505,6 +548,7 @@ export function DailyLunchTracker({ entries, users, currency, currentUserId, isA
                                   const result = await updateEntry(entry.id, {
                                     date: entry.date,
                                     totalExpense: newTotal,
+                                    notes: entry.notes || undefined,
                                     shares: newPresentIds.map(id => ({ userId: id, amount: newShare })),
                                     payments: entry.userDetails
                                       .filter(d => d.paid > 0)

@@ -108,7 +108,7 @@ export function WeeklySummary({
                         : "text-muted-foreground"
                   )}
                 >
-                  {currency}{Math.abs(balance.balance).toLocaleString("en-IN", {
+                  {balance.balance >= 0 ? "+" : "-"}{currency}{Math.abs(balance.balance).toLocaleString("en-IN", {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}
@@ -179,8 +179,17 @@ export function WeeklySummary({
                     weeks.map((week) => (
                       <Fragment key={week.weekStart}>
                         <TableRow
-                          className="hover:bg-muted/30 cursor-pointer transition-colors border-b border-border/50 group"
+                          className="hover:bg-muted/30 cursor-pointer transition-colors border-b border-border/50 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
                           onClick={() => toggleWeek(week.weekStart)}
+                          role="button"
+                          tabIndex={0}
+                          aria-expanded={expandedWeeks.has(week.weekStart)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault()
+                              toggleWeek(week.weekStart)
+                            }
+                          }}
                         >
                           <TableCell className="py-4">
                             {expandedWeeks.has(week.weekStart) ? (
@@ -228,7 +237,7 @@ export function WeeklySummary({
                                       : "text-muted-foreground"
                                 )}
                               >
-                                {currency}{Math.abs(balance).toLocaleString("en-IN", {
+                                {balance >= 0 ? "+" : "-"}{currency}{Math.abs(balance).toLocaleString("en-IN", {
                                   minimumFractionDigits: 2,
                                   maximumFractionDigits: 2,
                                 })}
