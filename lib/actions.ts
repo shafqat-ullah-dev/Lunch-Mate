@@ -767,26 +767,45 @@ export async function getMonthlySummary() {
   return { months, users }
 }
 
-export async function getDailyLunchData() {
+export async function getDailyLunchData(month?: string) {
   const auth = await getAuthorizedOrgId()
   if (!auth) return { entries: [], users: [] }
   const { orgId } = auth
   const supabase = await createClient()
 
   const users = await getUsers()
-  
-  // Parallelize database fetches
-  const [entriesRes, sharesRes, paymentsRes] = await Promise.all([
-    supabase.from("lunch_entries").select("*").eq("org_id", orgId).order("date", { ascending: true }),
-    supabase.from("lunch_shares").select("*").eq("org_id", orgId),
-    supabase.from("lunch_payments").select("*").eq("org_id", orgId)
-  ])
 
-  const { data: entries } = entriesRes
-  const { data: shares } = sharesRes
-  const { data: payments } = paymentsRes
+  let entriesQuery = supabase
+    .from("lunch_entries")
+    .select("*")
+    .eq("org_id", orgId)
+    .order("date", { ascending: true })
+
+  if (month) {
+    const [year, monthNum] = month.split("-")
+    const startDate = `${year}-${monthNum}-01`
+    const endDate = new Date(parseInt(year), parseInt(monthNum), 0).toISOString().split("T")[0]
+    entriesQuery = entriesQuery.gte("date", startDate).lte("date", endDate)
+  }
+
+  const { data: entries } = await entriesQuery
 
   if (!entries || !users) return { entries: [], users: [] }
+
+  const entryIds = entries.map((e) => e.id)
+
+  // Parallelize remaining database fetches, scoped to the filtered entries
+  const [sharesRes, paymentsRes] = await Promise.all([
+    entryIds.length > 0
+      ? supabase.from("lunch_shares").select("*").eq("org_id", orgId).in("entry_id", entryIds)
+      : Promise.resolve({ data: [] }),
+    entryIds.length > 0
+      ? supabase.from("lunch_payments").select("*").eq("org_id", orgId).in("entry_id", entryIds)
+      : Promise.resolve({ data: [] }),
+  ])
+
+  const { data: shares } = sharesRes
+  const { data: payments } = paymentsRes
 
   const sortedEntries = entries || []
 
