@@ -394,7 +394,7 @@ export async function getEntriesWithDetails(month?: string): Promise<EntryWithDe
     .from("lunch_entries")
     .select("*")
     .eq("org_id", orgId)
-    .order("date", { ascending: true })
+    .order("date", { ascending: false })
 
   if (month) {
     const [year, monthNum] = month.split("-")
