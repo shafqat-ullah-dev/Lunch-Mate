@@ -149,14 +149,15 @@ export function AddEntryDialog({ users, currency, currentUserId }: AddEntryDialo
           Add Daily Entry
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[480px] bg-card/95 backdrop-blur-xl border-border/50 max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[480px] bg-card/95 backdrop-blur-xl border-border/50 rounded-3xl p-0 gap-0 max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="overflow-y-auto p-6 flex-1 min-h-0">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl font-bold">
             <Receipt className="h-5 w-5 text-primary" />
             Add New Lunch Entry
           </DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-6 pt-4">
           <div className="grid gap-5">
             <div className="grid gap-2.5">
@@ -438,6 +439,7 @@ export function AddEntryDialog({ users, currency, currentUserId }: AddEntryDialo
             </Button>
           </DialogFooter>
         </form>
+        </div>
       </DialogContent>
     </Dialog>
   )
