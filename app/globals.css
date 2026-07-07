@@ -41,6 +41,10 @@
   --glass-bg: oklch(1 0 0 / 0.4);
   --glass-border: oklch(0 0 0 / 0.05);
   --glow-emerald: oklch(0.65 0.18 165 / 0.1);
+  /* Scrollbar */
+  --scrollbar-thumb: oklch(0.65 0.18 165 / 0.25);
+  --scrollbar-thumb-hover: oklch(0.65 0.18 165 / 0.45);
+  --scrollbar-track: transparent;
 }
 
 .dark {
@@ -80,6 +84,10 @@
   --glass-bg: oklch(0.35 0.02 220 / 0.4);
   --glass-border: oklch(1 0 0 / 0.25);
   --glow-emerald: oklch(0.72 0.18 165 / 0.2);
+  /* Scrollbar */
+  --scrollbar-thumb: oklch(0.72 0.18 165 / 0.3);
+  --scrollbar-thumb-hover: oklch(0.72 0.18 165 / 0.5);
+  --scrollbar-track: transparent;
 }
 
 @theme inline {
@@ -133,6 +141,31 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb);
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scrollbar-thumb-hover);
   }
 }
 
