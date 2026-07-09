@@ -198,6 +198,78 @@ export const getAuthorizedOrgId = cache(async () => {
   }
 })
 
+export async function getOrgOwnerId(): Promise<string | null> {
+  const auth = await getAuthorizedOrgId()
+  if (!auth) return null
+  const supabase = await createClient()
+
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("owner_id")
+    .eq("id", auth.orgId)
+    .single()
+
+  return org?.owner_id || null
+}
+
+export async function getOrgMemberRoles(): Promise<{ userId: string; role: string }[]> {
+  const auth = await getAuthorizedOrgId()
+  if (!auth) return []
+  const supabase = await createClient()
+
+  const { data } = await supabase
+    .from("organization_members")
+    .select("user_id, role")
+    .eq("org_id", auth.orgId)
+
+  return (data || []).map((m) => ({ userId: m.user_id, role: m.role }))
+}
+
+export async function updateMemberRole(
+  targetUserId: string,
+  role: "admin" | "member"
+): Promise<{ success: boolean; error?: string }> {
+  const auth = await getAuthorizedOrgId()
+  if (!auth) return { success: false, error: "Unauthorized" }
+  if (auth.role !== "admin") return { success: false, error: "Only admins can change member roles" }
+
+  const supabase = await createClient()
+
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("owner_id")
+    .eq("id", auth.orgId)
+    .single()
+
+  if (role === "member" && org?.owner_id === targetUserId) {
+    return { success: false, error: "The organization owner must remain an admin" }
+  }
+
+  if (role === "member" && targetUserId === auth.userId) {
+    const { count } = await supabase
+      .from("organization_members")
+      .select("user_id", { count: "exact", head: true })
+      .eq("org_id", auth.orgId)
+      .eq("role", "admin")
+    if ((count || 0) <= 1) {
+      return { success: false, error: "You are the only admin. Promote someone else first." }
+    }
+  }
+
+  const { error } = await supabase
+    .from("organization_members")
+    .update({ role })
+    .eq("org_id", auth.orgId)
+    .eq("user_id", targetUserId)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath("/admin")
+  revalidatePath("/admin/users")
+  revalidatePath("/user")
+  return { success: true }
+}
+
 export async function getOrgMembersNotInLunchTracking() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
