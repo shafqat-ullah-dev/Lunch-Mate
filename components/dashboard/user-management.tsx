@@ -32,12 +32,12 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { Trash2, UserPlus, Loader2, Mail, ShieldCheck, User, Edit2 } from "lucide-react"
+import { Trash2, UserPlus, Loader2, Mail, ShieldCheck, User, Edit2, ShieldOff } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { addUser, deleteUser, updateUser, type LunchUser, type UserBalance } from "@/lib/actions"
 import { UserLabel } from "./user-label"
 import { createClient } from "@/lib/supabase/client"
-import { getUserOrg } from "@/lib/org-actions"
+import { getUserOrg, updateMemberRole } from "@/lib/org-actions"
 import { toast } from "sonner"
 
 interface MemberProfile {
@@ -52,9 +52,11 @@ interface UserManagementProps {
   balances: UserBalance[]
   currentUserId?: string
   currency?: string
+  memberRoles?: { userId: string; role: string }[]
+  ownerId?: string | null
 }
 
-export function UserManagement({ users, balances, currentUserId, currency = "PKR" }: UserManagementProps) {
+export function UserManagement({ users, balances, currentUserId, currency = "PKR", memberRoles = [], ownerId = null }: UserManagementProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [availableMembers, setAvailableMembers] = useState<MemberProfile[]>([])
@@ -145,6 +147,25 @@ export function UserManagement({ users, balances, currentUserId, currency = "PKR
 
   const getBalanceForUser = (userId: string) => {
     return balances.find((b) => b.id === userId)
+  }
+
+  const getRoleForLinkedUser = (linkedUserId: string | null) => {
+    if (!linkedUserId) return null
+    return memberRoles.find((m) => m.userId === linkedUserId)?.role || null
+  }
+
+  const handleToggleRole = (linkedUserId: string, name: string, currentRole: string) => {
+    const nextRole = currentRole === "admin" ? "member" : "admin"
+    startTransition(async () => {
+      const result = await updateMemberRole(linkedUserId, nextRole)
+      if (result.success) {
+        toast.success(
+          nextRole === "admin" ? `${name} is now an admin` : `${name} is no longer an admin`
+        )
+      } else {
+        toast.error(result.error || "Failed to update role")
+      }
+    })
   }
 
   return (
@@ -277,6 +298,8 @@ export function UserManagement({ users, balances, currentUserId, currency = "PKR
               <TableBody>
                 {users.map((user) => {
                   const balance = getBalanceForUser(user.id)
+                  const role = getRoleForLinkedUser(user.linked_user_id)
+                  const isOwner = !!user.linked_user_id && user.linked_user_id === ownerId
                   return (
                     <TableRow key={user.id} className="hover:bg-muted/30 transition-colors border-b border-border/20 last:border-none group">
                       <TableCell className="py-6 px-10 text-left font-bold text-sm tracking-tight border-r border-primary/5">
@@ -286,11 +309,22 @@ export function UserManagement({ users, balances, currentUserId, currency = "PKR
                               {user.name.charAt(0).toUpperCase()}
                             </span>
                           </div>
-                          <UserLabel 
-                            name={user.name} 
-                            isMe={user.linked_user_id === currentUserId} 
-                            className="text-sm font-black uppercase tracking-tight"
-                          />
+                          <div className="flex items-center gap-2 min-w-0">
+                            <UserLabel
+                              name={user.name}
+                              isMe={user.linked_user_id === currentUserId}
+                              className="text-sm font-black uppercase tracking-tight"
+                            />
+                            {role && (
+                              <Badge
+                                variant={role === "admin" ? "default" : "secondary"}
+                                className="shrink-0 text-[9px] font-black uppercase tracking-widest h-5 px-2"
+                              >
+                                {role === "admin" ? <ShieldCheck className="h-2.5 w-2.5 mr-1" /> : null}
+                                {role}
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell className="py-6 text-center">
@@ -315,6 +349,23 @@ export function UserManagement({ users, balances, currentUserId, currency = "PKR
                       </TableCell>
                       <TableCell className="py-6 px-6 text-center">
                         <div className="flex items-center justify-center gap-2">
+                          {role && !isOwner && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className={cn(
+                                "h-10 w-10 rounded-xl transition-all active:scale-90",
+                                role === "admin"
+                                  ? "text-amber-500 hover:text-amber-500 hover:bg-amber-500/10"
+                                  : "hover:bg-primary/10 hover:text-primary"
+                              )}
+                              onClick={() => handleToggleRole(user.linked_user_id as string, user.name, role)}
+                              disabled={isPending}
+                              title={role === "admin" ? "Revoke admin" : "Make admin"}
+                            >
+                              {role === "admin" ? <ShieldOff className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="icon"
