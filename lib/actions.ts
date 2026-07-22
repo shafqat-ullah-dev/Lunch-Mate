@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 import { getAuthorizedOrgId } from "./org-actions"
 import { notifyOrgMembers } from "./push-actions"
+import { calculateSettlementAwareBalances, normalizeBalance, type UserSettlementDetail } from "./settlement"
 
 // Get current user profile
 export async function getCurrentUser() {
@@ -90,13 +91,14 @@ export async function getUsers(): Promise<LunchUser[]> {
   const supabase = await createClient()
   
   // 1. Get current tracker users
-  let { data: trackerUsers, error: fetchError } = await supabase
+  const fetchRes = await supabase
     .from("lunch_users")
     .select("*")
     .eq("org_id", orgId)
     .order("name")
 
-  if (fetchError) return []
+  let trackerUsers = fetchRes.data
+  if (fetchRes.error) return []
 
   // 2. Quick check if generic names need updating
   const isGeneric = (name: string) => {
@@ -359,8 +361,7 @@ export async function getUserBalances(): Promise<UserBalance[]> {
     const totalShares = userEntries.reduce((sum: number, ud) => sum + (ud?.share || 0), 0)
     const totalBalance = userEntries.reduce((sum: number, ud) => sum + (ud?.balance || 0), 0)
 
-    let finalBalance = Math.round(totalBalance * 100) / 100
-    if (Math.abs(finalBalance) < 1) finalBalance = 0
+    const finalBalance = normalizeBalance(totalBalance)
 
     return {
       id: user.id,
@@ -691,8 +692,7 @@ export async function getWeeklySummary() {
       const totalShares = userWeekEntries.reduce((sum: number, ud: UserSettlementDetail | undefined) => sum + (ud?.share || 0), 0)
       const totalBalance = userWeekEntries.reduce((sum: number, ud: UserSettlementDetail | undefined) => sum + (ud?.balance || 0), 0)
 
-      let finalBalance = Math.round(totalBalance * 100) / 100
-      if (Math.abs(finalBalance) < 1) finalBalance = 0
+      const finalBalance = normalizeBalance(totalBalance)
 
       return {
         userId: user.id,
@@ -810,8 +810,7 @@ export async function getMonthlySummary() {
       const totalShares = userMonthEntries.reduce((sum: number, ud: UserSettlementDetail | undefined) => sum + (ud?.share || 0), 0)
       const totalBalance = userMonthEntries.reduce((sum: number, ud: UserSettlementDetail | undefined) => sum + (ud?.balance || 0), 0)
 
-      let finalBalance = Math.round(totalBalance * 100) / 100
-      if (Math.abs(finalBalance) < 1) finalBalance = 0
+      const finalBalance = normalizeBalance(totalBalance)
 
       return {
         userId: user.id,
@@ -921,55 +920,6 @@ interface LunchEntryDetail {
   totalExpense: number
   notes: string | null
   userDetails: UserSettlementDetail[]
-}
-
-interface UserSettlementDetail {
-  userId: string
-  userName: string
-  linked_user_id?: string | null
-  isPresent: boolean
-  share: number
-  paid: number
-  balance: number
-  totalBalance?: number
-}
-
-function calculateSettlementAwareBalances(
-  totalExpense: number,
-  users: { userId: string; userName: string; linked_user_id?: string | null; isPresent: boolean; share: number; paid: number; totalBalance?: number }[]
-): UserSettlementDetail[] {
-  const totalPaid = users.reduce((sum: number, u) => sum + u.paid, 0)
-  const excess = Math.max(0, totalPaid - totalExpense)
-
-  if (excess <= 1.0) { // Small buffer for rounding
-    return users.map(u => ({ ...u, balance: Math.round((u.paid - u.share) * 100) / 100 }))
-  }
-
-  const rawOverpaidList = users.map(u => ({
-    userId: u.userId,
-    overpaid: Math.max(0, u.paid - u.share)
-  }))
-  const totalOverpaidAmount = rawOverpaidList.reduce((sum: number, r) => sum + r.overpaid, 0)
-
-  return users.map(u => {
-    const userOverpaidAmount = Math.max(0, u.paid - u.share)
-    // Distribute excess to those who paid more than their share (the primary payers)
-    const reimbursement = totalOverpaidAmount > 0 ? (userOverpaidAmount / totalOverpaidAmount) * excess : 0
-    
-    // Balance is adjusted by reimbursement
-    const balance = (u.paid - u.share) - reimbursement
-    
-    // Round to 2 decimal places to avoid floating point issues in UI
-    let finalBalance = Math.round(balance * 100) / 100
-    
-    // If balance is between -1 and 1, treat it as 0 (covers small remaining debts/credits due to rounding)
-    if (Math.abs(finalBalance) < 1) finalBalance = 0
-    
-    return {
-      ...u,
-      balance: finalBalance
-    }
-  })
 }
 
 // Settle historical debt for a user by applying payments to past entries where they owe money.

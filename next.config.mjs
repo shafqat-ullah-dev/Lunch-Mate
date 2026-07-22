@@ -1,10 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  // All type errors are fixed; keep build honest so regressions fail CI/build.
   images: {
-    unoptimized: true,
+    // All images are local assets in /public, so optimization is safe.
+    formats: ["image/avif", "image/webp"],
   },
 }
 

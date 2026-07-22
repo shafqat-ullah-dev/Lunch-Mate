@@ -1,5 +1,6 @@
 import { UserBalanceTable } from "@/components/dashboard/user-balance-table"
 import { TopNavbar } from "@/components/dashboard/top-navbar"
+import { ExportButton } from "@/components/dashboard/export-button"
 import { getUserBalances, getCurrentUser } from "@/lib/actions"
 import { getUserOrg } from "@/lib/org-actions"
 
@@ -16,6 +17,9 @@ export default async function BalancesPage() {
     <div className="flex flex-col h-full bg-background/50">
       <TopNavbar title="Team Balances" />
       <div className="flex-1 p-4 md:p-6 lg:p-10 space-y-6 md:space-y-8 overflow-auto">
+        <div className="flex justify-end">
+          <ExportButton />
+        </div>
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
           <UserBalanceTable 
             balances={balances} 
